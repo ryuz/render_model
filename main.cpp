@@ -4,6 +4,7 @@
 #include "Render.h"
 
 
+// レンダリング
 class MyRender : public Render<float>
 {
 public:
@@ -16,7 +17,9 @@ protected:
 	}
 
 	// ピクセルシェーダー
-	void PixelShader(ShaderParam& param) {
+	void PixelShader(ShaderParam& param)
+	{
+		// 座標取り出し
 		cv::Point pt;
 		pt.x = (int)param.vector.at<float>(0, 0);
 		pt.y = (int)param.vector.at<float>(1, 0); 
@@ -31,24 +34,29 @@ protected:
 		m_ImageBuffer.at<cv::Vec3b>(pt)[1] = (uchar)param.color[1];
 		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = (uchar)param.color[2];
 
-		// テクスチャ
+		// テクスチャ(とりあえずニアレストネイバー)
 		float	u = param.color[3];
 		float	v = param.color[4];
 		int uu = (int)((m_Textures[0].cols-1) * u + 0.5);
 		int vv = (int)((m_Textures[0].rows-1) * v + 0.5);
-		m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
+	//	m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
 	}
 };
 
 
+// メイン関数
 int main()
 {
+	// レンダー生成
 	MyRender	r;
-	
-	MyRender::ShaderParam	vertex[3];
 
-//	cv::Mat img = cv::Mat::zeros(480, 640, CV_8UC3);
-//	r.SetImage(img);
+	// (0, 0)-(1.0, 1.0) を VGA画面に少し射影変形を入れて表示
+	cv::Point2f	src_pt[4] = {cv::Point2f(0.0f, 0.0f), cv::Point2f(1.0f, 0.0f), cv::Point2f(1.0f, 1.0f), cv::Point2f(0.0f, 1.0f)};
+	cv::Point2f	dst_pt[4] = {cv::Point2f(100, 10),    cv::Point2f(540, 10),    cv::Point2f(630, 470),   cv::Point2f(10, 470)};
+	cv::Mat mat = cv::getPerspectiveTransform(src_pt, dst_pt);
+	std::cout << mat << std::endl;
+
+	MyRender::ShaderParam	vertex[3];
 	
 	cv::Mat imgTexture = cv::imread("DSC_0030.jpg");
 	r.SetTexture(imgTexture);

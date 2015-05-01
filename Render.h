@@ -71,6 +71,68 @@ public:
 	void		SetMatrix(cv::Mat_<T> mat)	{ m_Matrix = mat; }
 	void		MulMatrix(cv::Mat_<T> mat)	{ m_Matrix = m_mat * m_Matrix; }
 	
+	// 射影変換設定
+	void Perspective(T fovy, T aspect, T znear, T zfar)
+	{
+		float radian=2*PI*fovy/360.0;
+		float t = (float)(1.0 / tan(radian/2));
+ 
+		GLfloat m[]={
+			t / aspect,0,0,0,
+			0,t,0,0,
+			0,0,(zfar + znear) / (znear - zfar),-1,
+			0,0,(2 * zfar * znear) / (znear - zfar),0
+		};
+
+	glLoadMatrixf(m);
+}
+
+	// 視点設定(gluLookAt もどき)
+	void LookAt(cv::Vec<T, 3> eye, cv::Vec<T, 3> center, cv::Vec<T, 3> up)
+	{
+		// 正規化
+		cv::normalize(up);
+
+		// 視線方向ベクトル
+		cv::Vec<T, 3>	eye_dir = center - eye;
+		cv::normalize(eye_dir);
+
+
+
+forward[0] = centerx - eyex;
+forward[1] = centery - eyey;
+forward[2] = centerz - eyez;
+
+up[0] = upx;
+up[1] = upy;
+up[2] = upz;
+
+normalize(forward);
+
+cross(forward, up, side);
+normalize(side);
+
+cross(side, forward, up);
+
+GLfloat m[]={
+ side[0],up[0],-forward[0],0,
+ side[1],up[1],-forward[1],0,
+ side[2],up[2],-forward[2],0,
+ 0,0,0,1
+};
+
+GLfloat mov[]={
+ 1,0,0,0,
+ 0,1,0,0,
+ 0,0,1,0,
+ -eyex,-eyey,-eyez,1
+};
+
+multiplication(m,mov,multi);
+glLoadMatrixf(multi);
+}
+
+
 	// ポリゴン描画
 	void DrawPolygon(std::vector<ShaderParam> vertexes)
 	{
@@ -164,14 +226,15 @@ public:
 			VertexShader(param);
 
 			// 座標設定
-			v[i].x = param.vector.at<T>(0, 0);
-			v[i].y = param.vector.at<T>(1, 0);
+			T	w  = param.vector.at<T>(3, 0);
+			v[i].x = param.vector.at<T>(0, 0) / w;
+			v[i].y = param.vector.at<T>(1, 0) / w;
 			
 			// Zパラメータ設定
 			z[i] = cv::Mat_<T>(2+m_ColorSize+m_CoordinateSize, 1);
 			int p = 0;
-			z[i].at<T>(p++, 0) = param.vector.at<T>(2, 0);			// z
-			z[i].at<T>(p++, 0) = (T)1.0 / param.vector.at<T>(3, 0);	// 1/w
+			z[i].at<T>(p++, 0) = param.vector.at<T>(2, 0) / w;	// z
+			z[i].at<T>(p++, 0) = (T)1.0 / w;					// 1/w
 
 			// 色パラメータ設定
 			for ( unsigned j = 0; j < m_ColorSize; j++ ) {
