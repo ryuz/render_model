@@ -56,11 +56,11 @@ public:
 		
 		// 平面の式(a*x + b*y + c*z + d = 0)の係数計算(外積)
 		cv::Mat_<T>	v0x = x[1] - x[0];
-		cv::Mat_<T>	v0y = x[1] - y[0]; 
-		cv::Mat_<T>	v0z = x[1] - z[0];
+		cv::Mat_<T>	v0y = y[1] - y[0]; 
+		cv::Mat_<T>	v0z = z[1] - z[0];
 		cv::Mat_<T>	v1x = x[2] - x[0]; 
-		cv::Mat_<T>	v1y = x[2] - y[0];
-		cv::Mat_<T>	v1z = x[2] - z[0];
+		cv::Mat_<T>	v1y = y[2] - y[0];
+		cv::Mat_<T>	v1z = z[2] - z[0];
 		cv::Mat_<T>	a = v0y.mul(v1z) - v0z.mul(v1y);
 		cv::Mat_<T>	b = v0z.mul(v1x) - v0x.mul(v1z);
 		cv::Mat_<T>	c = v0x.mul(v1y) - v0y.mul(v1x);
@@ -68,7 +68,7 @@ public:
 		// グーロー計算用係数生成
 		cv::Mat_<T>	zdx = -a.mul(1/c);
 		cv::Mat_<T>	zdy = -b.mul(1/c);
-		cv::Mat_<T>	dd  = zdx.mul(x[0]) + zdx.mul(z[0]) + z[0];
+		cv::Mat_<T>	dd  = z[0] - zdx.mul(x[0]) - zdy.mul(y[0]);
 		cv::Mat_<T>	z0  = (zdx * x0) + (zdy * y0) + dd;
 
 		// ラスタライズ
@@ -77,7 +77,7 @@ public:
 		cv::Point		pt;
 		for ( pt.y = y0; pt.y <= y1; pt.y++ ) {
 			cv::Vec<T, 3>	ex = ey;
-			cv::Mat_<T>		zx = zy;
+			cv::Mat_<T>		zx = zy.clone();
 			for ( pt.x = x0; pt.x <= x1; pt.x++ ) {
 				if ( ex[0] >= 0 && ex[1] >= 0 && ex[2] >= 0 ) {
 					PixcelProc(pt, zx);
