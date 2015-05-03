@@ -68,71 +68,61 @@ public:
 	
 	// マトリックス設定
 	void		LoadIdentity(void)			{ m_Matrix = cv::Mat_<T>::eye(4, 4); }
-	void		SetMatrix(cv::Mat_<T> mat)	{ m_Matrix = mat; }
-	void		MulMatrix(cv::Mat_<T> mat)	{ m_Matrix = m_mat * m_Matrix; }
+	void		LoadMatrix(cv::Mat_<T> mat)	{ m_Matrix = mat; }
+	void		MultMatrix(cv::Mat_<T> mat)	{ m_Matrix = m_Matrix * m_mat; }
 	
-	// 射影変換設定
+	// 射影変換設定(gluPerspectiveもどき)
 	void Perspective(T fovy, T aspect, T znear, T zfar)
 	{
-		float radian=2*PI*fovy/360.0;
-		float t = (float)(1.0 / tan(radian/2));
- 
-		GLfloat m[]={
-			t / aspect,0,0,0,
-			0,t,0,0,
-			0,0,(zfar + znear) / (znear - zfar),-1,
-			0,0,(2 * zfar * znear) / (znear - zfar),0
-		};
+		T	r = fovy * (T)((3.1415926535897932384626/180.0) / 2.0);
+		T	t = (T)1.0 / (T)tan(r);
+		
+		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
+				t/aspect, 0,                                   0,  0,
+				0,        t,                                   0,  0,
+				0,        0,     (zfar + znear) / (znear - zfar), -1,
+				0,        0, (2 * zfar * znear) / (znear - zfar),  0);
 
-	glLoadMatrixf(m);
-}
+		MultMatrix(mat);
+	}
+
+	// 平行移動(glTranslate もどき)
+	void Translated(cv::Vec<T, 3> v)
+	{
+		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
+				1, 0, 0, v[0],
+				0, 1, 0, v[1],
+				0, 0, 1, v[2],
+				0, 0, 0,    1);
+
+		MultMatrix(mat);
+	}
 
 	// 視点設定(gluLookAt もどき)
 	void LookAt(cv::Vec<T, 3> eye, cv::Vec<T, 3> center, cv::Vec<T, 3> up)
 	{
-		// 正規化
+		cv::Vec<T, 3>	f = center - eye;
+		cv::normalize(f);
+
 		cv::normalize(up);
 
-		// 視線方向ベクトル
-		cv::Vec<T, 3>	eye_dir = center - eye;
-		cv::normalize(eye_dir);
+		cv::Vec<T, 3>	s  = f.cross(up);
+		
+		cv::Vec<T, 3>	ss = s;
+		normalize(ss);
+		cv::Vec<T, 3>	u  = ss.cross(f);
+		
+		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
+				  s[0],  s[1],  s[2], 0,
+				  u[0],  u[1],  u[2], 0,
+				 -f[0], -f[1], -f[2], 0,
+				     0,     0,     0, 1);
 
+		MultMatrix(mat);
 
-
-forward[0] = centerx - eyex;
-forward[1] = centery - eyey;
-forward[2] = centerz - eyez;
-
-up[0] = upx;
-up[1] = upy;
-up[2] = upz;
-
-normalize(forward);
-
-cross(forward, up, side);
-normalize(side);
-
-cross(side, forward, up);
-
-GLfloat m[]={
- side[0],up[0],-forward[0],0,
- side[1],up[1],-forward[1],0,
- side[2],up[2],-forward[2],0,
- 0,0,0,1
-};
-
-GLfloat mov[]={
- 1,0,0,0,
- 0,1,0,0,
- 0,0,1,0,
- -eyex,-eyey,-eyez,1
-};
-
-multiplication(m,mov,multi);
-glLoadMatrixf(multi);
-}
-
-
+		Translated(-eye);
+	};
+	
 	// ポリゴン描画
 	void DrawPolygon(std::vector<ShaderParam> vertexes)
 	{
