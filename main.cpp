@@ -50,18 +50,12 @@ int main()
 	// レンダー生成
 	MyRender	r;
 
-	// (0, 0)-(1.0, 1.0) を VGA画面に少し射影変形を入れて表示
-	cv::Point2f	src_pt[4] = {cv::Point2f(0.0f, 0.0f), cv::Point2f(1.0f, 0.0f), cv::Point2f(1.0f, 1.0f), cv::Point2f(0.0f, 1.0f)};
-	cv::Point2f	dst_pt[4] = {cv::Point2f(100, 10),    cv::Point2f(540, 10),    cv::Point2f(630, 470),   cv::Point2f(10, 470)};
-	cv::Mat mat = cv::getPerspectiveTransform(src_pt, dst_pt);
-	std::cout << mat << std::endl;
-
 	MyRender::ShaderParam	vertex[3];
-	
 	cv::Mat imgTexture = cv::imread("DSC_0030.jpg");
 	r.SetTexture(imgTexture);
 
-	vertex[0].vector = (cv::Mat_<float>(4, 1) << 100, 100, 0, 1);
+//	vertex[0].vector = (cv::Mat_<float>(4, 1) << 100, 100, 0, 1);
+	vertex[0].vector = (cv::Mat_<float>(4, 1) << -0.9, 0.9, 0, 1);
 	vertex[0].color.push_back(255);
 	vertex[0].color.push_back(0);
 	vertex[0].color.push_back(0);
@@ -69,7 +63,7 @@ int main()
 	vertex[0].color.push_back(0);
 	vertex[0].color.push_back(0);
 
-	vertex[1].vector = (cv::Mat_<float>(4, 1) << 300, 420, 0, 1);
+	vertex[1].vector = (cv::Mat_<float>(4, 1) << 0.1, -0.8, 0, 1);
 	vertex[1].color.push_back(0);
 	vertex[1].color.push_back(255);
 	vertex[1].color.push_back(0);
@@ -77,13 +71,19 @@ int main()
 	vertex[1].color.push_back(1);
 	vertex[1].color.push_back(0);
 
-	vertex[2].vector = (cv::Mat_<float>(4, 1) << 600, 150, 0, 1);
+//	vertex[2].vector = (cv::Mat_<float>(4, 1) << 0.9, 0.8, 0, 1);
+	vertex[2].vector = (cv::Mat_<float>(4, 1) << 0.0, 0.0, 0, 1);
 	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(255);
 
 	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(1);
+	
+	r.MatrixMode(MyRender::PROJECTION);
+	r.Perspective(30.0, 1.0, 0.1, 100.0);
+	r.LookAt(cv::Vec3f(0, 0, 10), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
+	
 	
 	r.DrawTriangle(vertex);
 

@@ -21,6 +21,12 @@ public:
 		QUAD_STRIP,
 	};
 
+	// マトリックスモード
+	enum MatrixMode {
+		MODELVIEW,
+		PROJECTION,
+	};
+	
 	// シェーダーパラメータ
 	struct	ShaderParam {
 		cv::Mat_<T>		vector;
@@ -28,14 +34,43 @@ public:
 		std::vector<T>	coordinate;
 	};
 	
+
+protected:
+	// メンバー変数
+	int						m_Width;
+	int						m_Height;
+	int						m_ImageType;		// 画像バッファタイプ
+	cv::Mat					m_ImageBuffer;		// 画像バッファ
+	int						m_DepthType;		// 深度バッファタイプ
+	cv::Mat					m_DepthBuffer;		// 深度バッファ	
+	std::vector<cv::Mat>	m_Textures;			// テクスチャ
+
+	PolygonMode				m_PolygonMode;		// ポリゴン描画モード
+	bool					m_CullingEnable;	// 表裏カリング
+	
+	MatrixMode				m_MatrixMode;		// マトリックスモード
+	cv::Mat_<T>				m_MatrixModelView;	// モデルビュー変換
+	cv::Mat_<T>				m_MatrixProjection;	// 投影変換
+	cv::Mat_<T>				m_MatrixViewPort;	// ビューポート変換
+	cv::Mat_<T>				m_Matrix;			// 変換行列
+
+	unsigned int			m_ColorSize;		// 色パラメータ数
+	unsigned int			m_CoordinateSize;	// 座標パラメータ数
+
+
+public:
 	// コンストラクタ
 	Render()
 	{
-		m_ImageType     = CV_8UC3;
-		m_DepthType     = cv::DataType<T>::type;
-		m_PolygonMode   = TRIANGLES;
-		m_CullingEnable = false;
-		LoadIdentity();
+		m_ImageType        = CV_8UC3;
+		m_DepthType        = cv::DataType<T>::type;
+		m_PolygonMode      = TRIANGLES;
+		m_CullingEnable    = false;
+		m_MatrixMode       = MODELVIEW;
+		m_MatrixModelView  = cv::Mat_<T>::eye(4, 4);
+		m_MatrixProjection = cv::Mat_<T>::eye(4, 4);
+		m_MatrixViewPort   = cv::Mat_<T>::eye(4, 4);
+		m_Matrix           = cv::Mat_<T>::eye(4, 4);
 		SetSize(640, 480);
 		SetTextureNum(1);
 	}
@@ -49,6 +84,7 @@ public:
 		m_Width  = width;
 		m_Height = height;
 		ClearBuffer();
+		Viewport(0, 0, width, height);
 	}
 
 	// バッファクリア
@@ -67,29 +103,32 @@ public:
 	cv::Mat&	GetTexture(int n=0)		{ return m_Textures[n]; }
 	
 	// マトリックス設定
-	void		LoadIdentity(void)			{ m_Matrix = cv::Mat_<T>::eye(4, 4); }
-	void		LoadMatrix(cv::Mat_<T> mat)	{ m_Matrix = mat; }
-	void		MultMatrix(cv::Mat_<T> mat)	{ m_Matrix = m_Matrix * m_mat; }
-	
-	// 射影変換設定(gluPerspectiveもどき)
-	void Perspective(T fovy, T aspect, T znear, T zfar)
-	{
-		T	r = fovy * (T)((3.1415926535897932384626/180.0) / 2.0);
-		T	t = (T)1.0 / (T)tan(r);
-		
-		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
-				t/aspect, 0,                                   0,  0,
-				0,        t,                                   0,  0,
-				0,        0,     (zfar + znear) / (znear - zfar), -1,
-				0,        0, (2 * zfar * znear) / (znear - zfar),  0);
+	void		MatrixMode(MatrixMode mode)	{ m_MatrixMode = mode; }
 
-		MultMatrix(mat);
+	void		LoadIdentity(void)			{ SetMatrix(cv::Mat_<T>::eye(4, 4)); }
+	void		LoadMatrix(cv::Mat_<T> mat)	{ SetMatrix(mat); }
+	void		MultMatrix(cv::Mat_<T> mat)	{ SetMatrix(GetMatrix() * mat); }
+
+
+	// ビューポート設定
+	void Viewport(int x, int y, int width,  int height)
+	{
+		T	w = (T)width  / (T)2;
+		T	h = (T)height / (T)2;
+
+		// 原点はウィンドウ左下とする
+		m_MatrixModelView = (cv::Mat_<T>(4, 4) <<
+				w,  0, 0,                 (w + (T)x),
+				0, -h, 0, (T)(m_Height-1)-(h + (T)y),
+				0,  0, 1,                          0,
+				0,  0, 0,                          1);
+		UpdateMatrix();
 	}
 
 	// 平行移動(glTranslate もどき)
 	void Translated(cv::Vec<T, 3> v)
 	{
-		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
+		cv::Mat_<T>	mat = (cv::Mat_<T>(4, 4) <<
 				1, 0, 0, v[0],
 				0, 1, 0, v[1],
 				0, 0, 1, v[2],
@@ -98,31 +137,45 @@ public:
 		MultMatrix(mat);
 	}
 
+	// 射影変換設定(gluPerspectiveもどき)
+	void Perspective(T fovy, T aspect, T zNear, T zFar)
+	{
+		T	t = (T)1.0 / (T)tan(fovy * (T)((3.1415926535897932384626/180.0)/2.0));
+				
+		cv::Mat_<T>	mat = (cv::Mat_<T>(4, 4) <<
+				t/aspect, 0,                               0,                                   0,
+				0,        t,                               0,                                   0,
+				0,        0, (zFar + zNear) / (zNear - zFar), (2 * zFar * zNear) / (zNear - zFar),
+				0,        0,                              -1,                                   0);
+
+		MultMatrix(mat);
+	}
+
 	// 視点設定(gluLookAt もどき)
 	void LookAt(cv::Vec<T, 3> eye, cv::Vec<T, 3> center, cv::Vec<T, 3> up)
 	{
 		cv::Vec<T, 3>	f = center - eye;
-		cv::normalize(f);
+		cv::normalize(f, f);
 
-		cv::normalize(up);
+		cv::normalize(up, up);
 
 		cv::Vec<T, 3>	s  = f.cross(up);
 		
-		cv::Vec<T, 3>	ss = s;
-		normalize(ss);
+		cv::Vec<T, 3>	ss;
+		normalize(s, ss);
 		cv::Vec<T, 3>	u  = ss.cross(f);
 		
-		cv::Mat_(T)	mat = (cv::Mat_<T(3,3) <<
+		cv::Mat_<T>	mat = (cv::Mat_<T>(4, 4) <<
 				  s[0],  s[1],  s[2], 0,
 				  u[0],  u[1],  u[2], 0,
 				 -f[0], -f[1], -f[2], 0,
 				     0,     0,     0, 1);
 
 		MultMatrix(mat);
-
 		Translated(-eye);
 	};
 	
+
 	// ポリゴン描画
 	void DrawPolygon(std::vector<ShaderParam> vertexes)
 	{
@@ -242,12 +295,52 @@ public:
 
 protected:
 	// 最大/最小
-	T	Min(T a, T b)	{ return a < b ? a : b; }
-	T	Min(T a, T b, T c) { return Min(Min(a, b), c); }
-	T	Min(T a, T b, T c, T d) { return Min(Min(a, b), Min(c, d)); }
-	T	Max(T a, T b)	{ return a > b ? a : b; }
-	T	Max(T a, T b, T c) { return Max(Max(a, b), c); }
-	T	Max(T a, T b, T c, T d) { return Max(Max(a, b), Max(c, d)); }
+	int	Ceil(float a)		{ return (int)ceil(a);	}
+	int	Ceil(double a)		{ return (int)ceil(a);	}
+	int	Floor(float a)		{ return (int)floor(a);	}
+	int	Floor(double a)		{ return (int)floor(a);	}
+	T	Min(T a, T b)		{ return a < b ? a : b; }
+	T	Min(T a, T b, T c)	{ return Min(Min(a, b), c); }
+	T	Max(T a, T b)		{ return a > b ? a : b; }
+	T	Max(T a, T b, T c)	{ return Max(Max(a, b), c); }
+	int	Min(int a, int b)	{ return a < b ? a : b; }
+	int	Max(int a, int b)	{ return a > b ? a : b; }
+	
+	// マトリックス更新
+	void UpdateMatrix(void)
+	{
+		m_Matrix = m_MatrixViewPort * m_MatrixProjection * m_MatrixModelView;
+	}
+
+	// マトリックス取得
+	cv::Mat_<T>& GetMatrix(void)
+	{
+		switch ( m_MatrixMode ) {
+		case MODELVIEW:
+			return m_MatrixModelView;
+			break;
+
+		case PROJECTION:
+			return m_MatrixProjection;
+			break;
+		}
+		return m_MatrixModelView;
+	}
+
+	// マトリックス設定
+	void SetMatrix(cv::Mat_<T> mat)
+	{
+		switch ( m_MatrixMode ) {
+		case MODELVIEW:
+			m_MatrixModelView = mat;
+			break;
+
+		case PROJECTION:
+			m_MatrixProjection = mat;
+			break;
+		}
+		UpdateMatrix();
+	}
 	
 	// ラスタライザ
 	void Rasteriser(cv::Point_<T> v[3], cv::Mat_<T> z[3])
@@ -270,11 +363,21 @@ protected:
 		}
 		
 		// 範囲算出
-		int	x0 = (int)(Min(v[0].x, v[1].x, v[2].x, (T)(m_Width-1)) + (T)0.5);
-		int	y0 = (int)(Min(v[0].y, v[1].y, v[2].y, (T)(m_Height-1)) + (T)0.5);
-		int	x1 = (int)(Max(v[0].x, v[1].x, v[2].x, (T)0) + (T)0.5);
-		int	y1 = (int)(Max(v[0].y, v[1].y, v[2].y, (T)0) + (T)0.5);
-		
+		int	x0 = Min(Max(Floor(Min(v[0].x, v[1].x, v[2].x)), 0), m_Width-1);
+		int	y0 = Min(Max(Floor(Min(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
+		int	x1 = Min(Max(Ceil(Max(v[0].x, v[1].x, v[2].x)), 0), m_Width-1);
+		int	y1 = Min(Max(Ceil(Max(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
+		/*
+		x0 = (int)Min(x0, m_Width-1);
+		x0 = (int)Max(x0, 0);
+		y0 = (int)Min(y0, m_Height-1);
+		y0 = (int)Max(x0, 0);
+		x1 = (int)Min(x1, m_Width-1);
+		x1 = (int)Max(x1, 0);
+		y1 = (int)Min(y1, m_Height-1);
+		y1 = (int)Max(x1, 0);
+		*/
+
 		// 領域内判定式作成
 		cv::Vec<T, 3>	e0;
 		cv::Vec<T, 3>	edx;
@@ -371,20 +474,7 @@ protected:
 	{
 	}
 	
-	// メンバー変数
-	int						m_Width;
-	int						m_Height;
-	int						m_ImageType;		// 画像バッファタイプ
-	cv::Mat					m_ImageBuffer;		// 画像バッファ
-	int						m_DepthType;		// 深度バッファタイプ
-	cv::Mat					m_DepthBuffer;		// 深度バッファ	
-	std::vector<cv::Mat>	m_Textures;			// テクスチャ
 
-	PolygonMode				m_PolygonMode;		// ポリゴン描画モード
-	bool					m_CullingEnable;	// 表裏カリング
-	cv::Mat					m_Matrix;			// 変換行列
-	unsigned int			m_ColorSize;		// 色パラメータ数
-	unsigned int			m_CoordinateSize;	// 座標パラメータ数
 };
 
 
