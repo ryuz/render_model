@@ -32,9 +32,18 @@ public:
 		cv::Mat_<T>		vector;
 		std::vector<T>	color;
 		std::vector<T>	coordinate;
+
+		ShaderParam() {} 
+		ShaderParam(const ShaderParam& obj) { *this = obj; }
+		ShaderParam& operator=(const ShaderParam& obj)
+		{
+			vector      = obj.vector.clone();	// deep copy
+			color       = obj.color;
+			coordinate  = obj.coordinate;
+			return *this;
+		}
 	};
 	
-
 protected:
 	// メンバー変数
 	int						m_Width;
@@ -45,7 +54,6 @@ protected:
 	cv::Mat					m_DepthBuffer;		// 深度バッファ	
 	std::vector<cv::Mat>	m_Textures;			// テクスチャ
 
-	PolygonMode				m_PolygonMode;		// ポリゴン描画モード
 	bool					m_CullingEnable;	// 表裏カリング
 	
 	MatrixMode				m_MatrixMode;		// マトリックスモード
@@ -64,7 +72,6 @@ public:
 	{
 		m_ImageType        = CV_8UC3;
 		m_DepthType        = cv::DataType<T>::type;
-		m_PolygonMode      = TRIANGLES;
 		m_CullingEnable    = false;
 		m_MatrixMode       = MODELVIEW;
 		m_MatrixModelView  = cv::Mat_<T>::eye(4, 4);
@@ -117,11 +124,12 @@ public:
 		T	h = (T)height / (T)2;
 
 		// 原点はウィンドウ左下とする
-		m_MatrixModelView = (cv::Mat_<T>(4, 4) <<
+		m_MatrixViewPort = (cv::Mat_<T>(4, 4) <<
 				w,  0, 0,                 (w + (T)x),
 				0, -h, 0, (T)(m_Height-1)-(h + (T)y),
 				0,  0, 1,                          0,
 				0,  0, 0,                          1);
+
 		UpdateMatrix();
 	}
 
@@ -177,7 +185,7 @@ public:
 	
 
 	// ポリゴン描画
-	void DrawPolygon(std::vector<ShaderParam> vertexes)
+	void DrawPolygon(std::vector<ShaderParam> vertexes, PolygonMode mode)
 	{
 		ShaderParam		v[3];
 		unsigned int	p = 0;
@@ -187,9 +195,9 @@ public:
 			return;
 		}
 
-		switch ( m_PolygonMode ) {
+		switch ( mode ) {
 		case TRIANGLES:
-			while ( n - p > 3 ) {
+			while ( n - p >= 3 ) {
 				v[0] = vertexes[p+0];
 				v[1] = vertexes[p+1];
 				v[2] = vertexes[p+2];
@@ -199,7 +207,7 @@ public:
 			break;
 		
 		case TRIANGLE_STRIP:
-			while ( n - p > 3 ) {
+			while ( n - p >= 3 ) {
 				v[0] = vertexes[p+0];
 				v[1] = vertexes[p+1];
 				v[2] = vertexes[p+2];
@@ -210,7 +218,7 @@ public:
 
 		case TRIANGLE_FAN:
 			v[0] = vertexes[p++];
-			while ( n - p > 2 ) {
+			while ( n - p >= 2 ) {
 				v[1] = vertexes[p+0];
 				v[2] = vertexes[p+1];
 				DrawTriangle(v);
@@ -219,7 +227,7 @@ public:
 			break;
 
 		case QUADS:
-			while ( n - p > 4 ) {
+			while ( n - p >= 4 ) {
 				v[0] = vertexes[p+0];
 				v[1] = vertexes[p+1];
 				v[2] = vertexes[p+2];
@@ -233,7 +241,7 @@ public:
 			break;
 
 		case QUAD_STRIP:
-			while ( n - p > 4 ) {
+			while ( n - p >= 4 ) {
 				v[0] = vertexes[p+0];
 				v[1] = vertexes[p+1];
 				v[2] = vertexes[p+2];
@@ -367,17 +375,7 @@ protected:
 		int	y0 = Min(Max(Floor(Min(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
 		int	x1 = Min(Max(Ceil(Max(v[0].x, v[1].x, v[2].x)), 0), m_Width-1);
 		int	y1 = Min(Max(Ceil(Max(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
-		/*
-		x0 = (int)Min(x0, m_Width-1);
-		x0 = (int)Max(x0, 0);
-		y0 = (int)Min(y0, m_Height-1);
-		y0 = (int)Max(x0, 0);
-		x1 = (int)Min(x1, m_Width-1);
-		x1 = (int)Max(x1, 0);
-		y1 = (int)Min(y1, m_Height-1);
-		y1 = (int)Max(x1, 0);
-		*/
-
+		
 		// 領域内判定式作成
 		cv::Vec<T, 3>	e0;
 		cv::Vec<T, 3>	edx;

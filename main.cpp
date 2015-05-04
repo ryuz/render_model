@@ -5,28 +5,29 @@
 
 
 // レンダリング
-class MyRender : public Render<float>
+template <typename T>
+class MyRender : public Render<T>
 {
 public:
-
 
 protected:
 	// バーテックスシェーダー
 	void VertexShader(ShaderParam& param) {
 		param.vector = m_Matrix * param.vector;
 	}
+	
 
 	// ピクセルシェーダー
 	void PixelShader(ShaderParam& param)
 	{
 		// 座標取り出し
 		cv::Point pt;
-		pt.x = (int)param.vector.at<float>(0, 0);
-		pt.y = (int)param.vector.at<float>(1, 0); 
-		float	z = param.vector.at<float>(2, 0); 
+		pt.x = (int)param.vector.at<T>(0, 0);
+		pt.y = (int)param.vector.at<T>(1, 0); 
+		float	z = param.vector.at<T>(2, 0); 
 
 		// 深度テスト
-		if ( z < m_DepthBuffer.at<float>(pt) ) {
+		if ( z < m_DepthBuffer.at<T>(pt) ) {
 			return;
 		}
 
@@ -35,76 +36,105 @@ protected:
 		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = (uchar)param.color[2];
 
 		// テクスチャ(とりあえずニアレストネイバー)
+#if 0
+		// 補正なし
 		float	u = param.color[3];
 		float	v = param.color[4];
-		int uu = (int)((m_Textures[0].cols-1) * u + 0.5);
-		int vv = (int)((m_Textures[0].rows-1) * v + 0.5);
-	//	m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
+#else
+		// 補正あり
+		float	u = param.coordinate[0];
+		float	v = param.coordinate[1];
+#endif
+
+//		int uu = (int)((m_Textures[0].cols-1) * u + 0.5);
+//		int vv = (int)((m_Textures[0].rows-1) * v + 0.5);
+		int uu = (int)((m_Textures[0].cols-1) * u);
+		int vv = (int)((m_Textures[0].rows-1) * v);
+		m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
 	}
 };
 
 
-// メイン関数
-int main()
+// 描画テスト
+template <typename T>
+void RenderTest(void)
 {
 	// レンダー生成
-	MyRender	r;
+	MyRender<T>	r;
 
-	MyRender::ShaderParam	vertex[3];
-	cv::Mat imgTexture = cv::imread("DSC_0030.jpg");
+	// テクスチャ設定
+	cv::Mat imgTexture = cv::imread("checker.png");
 	r.SetTexture(imgTexture);
 
-//	vertex[0].vector = (cv::Mat_<float>(4, 1) << 100, 100, 0, 1);
-	vertex[0].vector = (cv::Mat_<float>(4, 1) << -0.9, 0.9, 0, 1);
-	vertex[0].color.push_back(255);
-	vertex[0].color.push_back(0);
-	vertex[0].color.push_back(0);
+	// 座標設定
+	r.Viewport(0, 0, 640, 480);
+	r.MatrixMode(MyRender<T>::PROJECTION);
+	r.Perspective(20.0f, 1.0f, 0.1f, 100.0f);
+	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
 
-	vertex[0].color.push_back(0);
-	vertex[0].color.push_back(0);
 
-	vertex[1].vector = (cv::Mat_<float>(4, 1) << 0.1, -0.8, 0, 1);
+	// 描画
+	std::vector<MyRender<T>::ShaderParam>	vertex(4);
+
+	vertex[0].vector = (cv::Mat_<T>(4, 1) << -1.0, -1.0, 0, 1);	// (x, y, z, 1)
+	vertex[0].color.push_back(255);		// B
+	vertex[0].color.push_back(0);		// G
+	vertex[0].color.push_back(0);		// R
+
+	vertex[0].color.push_back(0);		// テクスチャ座標 u (パースペクティブ補正無しの場合の実験用)
+	vertex[0].color.push_back(0);		// テクスチャ座標 v (パースペクティブ補正無しの場合の実験用)
+	vertex[0].coordinate.push_back(0);	// テクスチャ座標 u
+	vertex[0].coordinate.push_back(0);	// テクスチャ座標 v
+
+
+	vertex[1].vector = (cv::Mat_<T>(4, 1) << +1.0, -1.0, 0, 1);
 	vertex[1].color.push_back(0);
 	vertex[1].color.push_back(255);
 	vertex[1].color.push_back(0);
 
 	vertex[1].color.push_back(1);
 	vertex[1].color.push_back(0);
+	vertex[1].coordinate.push_back(1);
+	vertex[1].coordinate.push_back(0);
 
-//	vertex[2].vector = (cv::Mat_<float>(4, 1) << 0.9, 0.8, 0, 1);
-	vertex[2].vector = (cv::Mat_<float>(4, 1) << 0.0, 0.0, 0, 1);
+
+	vertex[2].vector = (cv::Mat_<T>(4, 1) << +1.0, +1.0, 0, 1);
 	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(255);
 
-	vertex[2].color.push_back(0);
 	vertex[2].color.push_back(1);
-	
-	r.MatrixMode(MyRender::PROJECTION);
-	r.Perspective(30.0, 1.0, 0.1, 100.0);
-	r.LookAt(cv::Vec3f(0, 0, 10), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
-	
-	
-	r.DrawTriangle(vertex);
+	vertex[2].color.push_back(1);
+	vertex[2].coordinate.push_back(1);
+	vertex[2].coordinate.push_back(1);
 
 
-	/*
-	cv::Point_<float>	v[3];
-	cv::Mat_<float>		z[3];
-	v[0] = cv::Point2f(100, 100);
-	v[1] = cv::Point2f(300, 420);
-	v[2] = cv::Point2f(600, 150);
-	z[0] = (cv::Mat_<float>(3, 1) << 255, 0, 0);
-	z[1] = (cv::Mat_<float>(3, 1) << 0, 255, 0);
-	z[2] = (cv::Mat_<float>(3, 1) << 0, 0, 255);
-	r.Rasterise(v, z);
-	*/
+	vertex[3].vector = (cv::Mat_<T>(4, 1) << -1.0, +1.0, 0, 1);
+	vertex[3].color.push_back(255);
+	vertex[3].color.push_back(0);
+	vertex[3].color.push_back(255);
 
-	cv::imshow("hoge", r.GetImage());
+	vertex[3].color.push_back(0);
+	vertex[3].color.push_back(1);
+	vertex[3].coordinate.push_back(0);
+	vertex[3].coordinate.push_back(1);
+	
+	r.DrawPolygon(vertex, MyRender<T>::QUADS);
+	
+	// 表示
+	cv::imshow("view", r.GetImage());
 	cv::waitKey();
-
-	return 0;
 }
 
 
 
+// メイン関数
+int main()
+{
+	RenderTest<double>();
+	
+	return 0;
+}
+
+
+// end of file
