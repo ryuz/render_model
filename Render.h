@@ -6,9 +6,10 @@
 #include <assert.h>
 #include <vector>
 #include "opencv2/opencv.hpp"
+#include "Vector.h"
 
 
-template <typename T>
+template <typename T, typename RT=T, typename GT=T>
 class Render
 {
 public:
@@ -375,7 +376,78 @@ protected:
 		int	y0 = Min(Max(Floor(Min(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
 		int	x1 = Min(Max(Ceil(Max(v[0].x, v[1].x, v[2].x)), 0), m_Width-1);
 		int	y1 = Min(Max(Ceil(Max(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
+
+		for ( int i = 0; i < 3; i++ ) {
+			printf("(%08x, %08x)\n", ((RT)v[i].x).GetRawValue(), ((RT)v[i].y).GetRawValue());
+		}
+
+		// 領域内判定式作成
+		Vector<RT>	e0(3);
+		Vector<RT>	edx(3);
+		Vector<RT>	edy(3);
+		for ( int i = 0; i < 3; i++ ) {
+			int j = (i+1) % 3;
+			edx[i] = (RT)v[j].x - (RT)v[i].x;
+			edy[i] = (RT)v[j].y - (RT)v[i].y;
+//			e0[i]  = ((T)x0 - v[i].x) * edy[i] - ((T)y0 - v[i].y) * edx[i];
+			e0[i]  = (((RT)v[i].y * edx[i]) - ((RT)v[i].x * edy[i])) + (RT(x0) * edy[i]) - (RT(y0) * edx[i]);
+
+			printf("%d, %d, %d\n", edx[i].GetRawValue(), edy[i].GetRawValue(), e0[i].GetRawValue());
+		}
+
+		// 記述を楽にするためにXYZもVector化
+		Vector<GT> vx[3];
+		Vector<GT> vy[3];
+		Vector<GT> vz[3];
+		for ( int i = 0; i < 3; i++ ) {
+			vx[i] = Vector<GT>(z[i].rows, (GT)v[i].x);
+			vy[i] = Vector<GT>(z[i].rows, (GT)v[i].y);
+			vz[i].Resize(z[i].rows);
+			for ( int j = 0; j < z[i].rows; j++ ) {
+				vz[i][j] = z[i].at<T>(j, 0);
+			}
+		}
 		
+		// 平面の式(a*x + b*y + c*z + d = 0)の係数計算(外積)
+		Vector<GT>	v0x = vx[1] - vx[0];
+		Vector<GT>	v0y = vy[1] - vy[0]; 
+		Vector<GT>	v0z = vz[1] - vz[0];
+		Vector<GT>	v1x = vx[2] - vx[0]; 
+		Vector<GT>	v1y = vy[2] - vy[0];
+		Vector<GT>	v1z = vz[2] - vz[0];
+		Vector<GT>	a = (v0y * v1z) - (v0z * v1y);
+		Vector<GT>	b = (v0z * v1x) - (v0x * v1z);
+		Vector<GT>	c = (v0x * v1y) - (v0y * v1x);
+
+		// グーロー計算用係数生成
+		Vector<GT>	zdx = -a/c;
+		Vector<GT>	zdy = -b/c;
+		Vector<GT>	dd  = vz[0] - (zdx * vx[0]) - (zdy * vy[0]);
+		Vector<GT>	z0  = (zdx * (GT)x0) + (zdy * (GT)y0) + dd;
+
+		// ラスタライズ
+		Vector<RT>		ey = e0;
+		Vector<GT>		zy = z0;
+		cv::Point		pt;
+		for ( pt.y = y0; pt.y <= y1; pt.y++ ) {
+			Vector<RT>		ex = ey;
+			Vector<GT>		zx = zy;
+			for ( pt.x = x0; pt.x <= x1; pt.x++ ) {
+				if ( ex[0] >= (RT)0 && ex[1] >= (RT)0 && ex[2] >= (RT)0 ) {
+					cv::Mat_<T> mz(zx.Size(), 1);
+					for ( int i = 0; i < mz.rows; i++ ) {
+						mz.at<T>(i, 0) = (T)zx[i];
+					}
+					PixelProc(pt, mz);
+				}
+				ex += edy;
+				zx += zdx;
+			}
+			ey -= edx;
+			zy += zdy;
+		}
+
+#if 0
 		// 領域内判定式作成
 		cv::Vec<T, 3>	e0;
 		cv::Vec<T, 3>	edx;
@@ -430,6 +502,7 @@ protected:
 			ey -= edx;
 			zy += zdy;
 		}
+#endif
 	}
 
 	// ピクセル処理

@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <vector>
+#include <iostream>
 #include "opencv2/opencv.hpp"
 
 
@@ -25,54 +26,75 @@ public:
 		m_v = obj.m_v;
 	}
 
-	FixedPointNumber(double v)
+	T	GetRawValue(void) { return m_v; }
+
+	inline FixedPointNumber(double v)
 	{
 		m_v = (T)(v * (1 << Q));
 	}
 
-	FixedPointNumber& operator=(const FixedPointNumber& obj)
+	inline FixedPointNumber& operator=(const FixedPointNumber& obj)
 	{
 		m_v = obj.m_v;
 		return *this;
 	}
 
-	FixedPointNumber& operator=(double v)
+	inline FixedPointNumber& operator=(double v)
 	{
 		m_v = (T)(v * (1 << Q));
 		return *this;
 	}
 
-	operator double() const
+	inline operator double() const
 	{
 		return (double)m_v / (double)(1 << Q);
 	}
 	
-	FixedPointNumber operator+(FixedPointNumber& obj) const
+	inline FixedPointNumber operator+() const
+	{
+		FixedPointNumber t;
+		t.m_v = +m_v;
+		return t;
+	}
+
+	inline FixedPointNumber operator-() const
+	{
+		FixedPointNumber t;
+		t.m_v = -m_v;
+		return t;
+	}
+
+	inline FixedPointNumber operator + (const FixedPointNumber& obj) const
 	{
 		FixedPointNumber t;
 		t.m_v = m_v + obj.m_v;
 		return t;
 	}
 
-	FixedPointNumber operator-(FixedPointNumber& obj) const
+	inline FixedPointNumber operator-(const FixedPointNumber& obj) const
 	{
 		FixedPointNumber t;
 		t.m_v = m_v - obj.m_v;
 		return t;
 	}
 
-	FixedPointNumber operator*(FixedPointNumber& obj) const
+	inline FixedPointNumber operator*(const FixedPointNumber& obj) const
 	{
 		FixedPointNumber t;
 		t.m_v = (T)(((LT)m_v * (LT)obj.m_v) >> Q);
 		return t;
 	}
 
-	FixedPointNumber operator/(FixedPointNumber& obj) const
+	inline FixedPointNumber operator/(const FixedPointNumber& obj) const
 	{
 		FixedPointNumber t;
 		t.m_v = (T)(((LT)m_v << Q) / (LT)obj.m_v);
 		return t;
+	}
+	
+	inline bool operator>=(const FixedPointNumber& obj) const
+	{
+		return (m_v >= obj.m_v);
 	}
 };
 

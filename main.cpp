@@ -5,8 +5,8 @@
 
 
 // レンダリング
-template <typename T>
-class MyRender : public Render<T>
+template <typename T, typename RT, typename GT>
+class MyRender : public Render<T, RT, GT>
 {
 public:
 
@@ -36,6 +36,7 @@ protected:
 		m_ImageBuffer.at<cv::Vec3b>(pt)[1] = (uchar)param.color[1];
 		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = (uchar)param.color[2];
 
+
 		// テクスチャ(とりあえずニアレストネイバー)
 #if 0
 		// 補正なし
@@ -46,6 +47,9 @@ protected:
 		float	u = param.coordinate[0];
 		float	v = param.coordinate[1];
 #endif
+		if ( u < 0 || u > 1.0f || v < 0 || v > 1.0f ) {
+			return;
+		}
 
 //		int uu = (int)((m_Textures[0].cols-1) * u + 0.5);
 //		int vv = (int)((m_Textures[0].rows-1) * v + 0.5);
@@ -57,26 +61,26 @@ protected:
 
 
 // 描画テスト
-template <typename T>
+template <typename T, typename RT, typename GT>
 void RenderTest(void)
 {
 	// レンダー生成
-	MyRender<T>	r;
+	MyRender<T, RT, GT>	r;
 
 	// テクスチャ設定
-//	cv::Mat imgTexture = cv::imread("checker.png");
-	cv::Mat imgTexture = cv::imread("white.png");
+	cv::Mat imgTexture = cv::imread("checker.png");
+//	cv::Mat imgTexture = cv::imread("white.png");
 	r.SetTexture(imgTexture);
 
 	// 座標設定
 	r.Viewport(0, 0, 640, 480);
-	r.MatrixMode(MyRender<T>::PROJECTION);
+	r.MatrixMode(MyRender<T, RT, GT>::PROJECTION);
 	r.Perspective(20.0f, 1.0f, 0.1f, 100.0f);
 	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
 
 
 	// 描画
-	std::vector<MyRender<T>::ShaderParam>	vertex(4);
+	std::vector<MyRender<T, RT, GT>::ShaderParam>	vertex(4);
 
 	vertex[0].vector = (cv::Mat_<T>(4, 1) << -1.0, -1.0, 0, 1);	// (x, y, z, 1)
 	vertex[0].color.push_back(255);		// B
@@ -121,7 +125,7 @@ void RenderTest(void)
 	vertex[3].coordinate.push_back(0);
 	vertex[3].coordinate.push_back(1);
 	
-	r.DrawPolygon(vertex, MyRender<T>::QUADS);
+	r.DrawPolygon(vertex, MyRender<T, RT, GT>::QUADS);
 	
 	// 表示
 	cv::imshow("view", r.GetImage());
@@ -129,10 +133,14 @@ void RenderTest(void)
 }
 
 
+#include "FixedPointNumber.h"
+
 // メイン関数
 int main()
 {
-	RenderTest<float>();
+//	RenderTest< double, double, double >();
+	RenderTest< float, FixedPointNumber<4, 32>, float >();
+//	RenderTest< float, FixedPointNumber<14, 32>, FixedPointNumber<18, 32, long long> >();
 	
 	return 0;
 }
