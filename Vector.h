@@ -7,26 +7,73 @@
 #include <assert.h>
 #include <vector>
 
+#ifndef _ASSERT
+#ifdef DEBUG
+#define _ASSERT(x)	assert(x)
+#else
+#define _ASSERT(x)	do{}while()
+#endif 
+#endif
+
 
 template <typename T>
 class Vector
 {
 public:
-	Vector() {}
-	Vector(unsigned int size) : m_v(size) {}
-	Vector(unsigned int size, T val) : m_v(size, val) {}
+	Vector()
+	{
+		m_size = 0;
+		m_v    = new T[m_size];
+	}
 	
-	Vector(const Vector& obj) { *this = obj; }
+	Vector(unsigned int size)
+	{
+		m_size = size;
+		m_v    = new T[m_size];
+	}
 
-	void			Resize(unsigned int size)	{ return m_v.resize(size); }
-	unsigned int	Size(void) const			{ return m_v.size(); }
+	Vector(unsigned int size, T val)
+	{
+		m_size = size;
+		m_v    = new T[m_size];
+		for ( unsigned int i = 0; i < m_size; i++ ) {
+			m_v[i] = val;
+		}
+	}
+	
+	Vector(const Vector& obj)
+	{
+		m_size = obj.Size();
+		m_v    = new T[m_size];
+		for ( unsigned int i = 0; i < m_size; i++ ) {
+			m_v[i] = obj.m_v[i];
+		}
+	}
+
+	~Vector()
+	{
+		delete[] m_v;
+	}
+
+	inline unsigned int	Size(void) const		{ return m_size; }
+
+	void Resize(unsigned int size)
+	{
+		delete[] m_v;
+		m_size = size;
+		m_v    = new T[m_size];
+	}
+	
 
 	T&	operator[](unsigned int n)	{ return m_v[n]; }
 
 	// ‘ã“ü
 	inline Vector&	operator=(const Vector& obj)
 	{
-		m_v = obj.m_v;
+		Resize(obj.Size());
+		for ( unsigned int i = 0; i < m_size; i++ ) {
+			m_v[i] = obj.m_v[i];
+		}
 		return *this;
 	}
 	
@@ -41,16 +88,21 @@ public:
 	}
 
 	// ‰ÁŽZ
-	inline Vector	operator+(const Vector& obj) const
+	inline Vector operator+(const Vector& obj) const
 	{
-		assert(Size() == obj.Size());
+		_ASSERT(Size() == obj.Size());
 		Vector	v(Size());
 		for ( unsigned int i = 0; i < Size(); i++ ) {
 			v.m_v[i] = m_v[i] + obj.m_v[i];
 		}
 		return v;
 	}
-	inline Vector&	operator+=(const Vector& obj) { *this = *this + obj; return *this; }
+
+	// ‰ÁŽZ‘ã“ü
+	inline Vector& operator+=(const Vector& obj)
+	{
+		*this = *this + obj; return *this;
+	}
 	
 	// ƒXƒJƒ‰‰ÁŽZ
 	inline Vector	operator+(T a) const
@@ -66,7 +118,7 @@ public:
 	// Œ¸ŽZ
 	inline Vector	operator-(const Vector& obj) const
 	{
-		assert(Size() == obj.Size());
+		_ASSERT(Size() == obj.Size());
 		Vector	v(Size());
 		for ( unsigned int i = 0; i < Size(); i++ ) {
 			v.m_v[i] = m_v[i] - obj.m_v[i];
@@ -89,7 +141,7 @@ public:
 	// æŽZ
 	inline Vector	operator*(const Vector& obj) const
 	{
-		assert(Size() == obj.Size());
+		_ASSERT(Size() == obj.Size());
 		Vector	v(Size());
 		for ( unsigned int i = 0; i < Size(); i++ ) {
 			v.m_v[i] = m_v[i] * obj.m_v[i];
@@ -112,7 +164,7 @@ public:
 	// œŽZ
 	inline Vector	operator/(const Vector& obj) const
 	{
-		assert(Size() == obj.Size());
+		_ASSERT(Size() == obj.Size());
 		Vector	v(Size());
 		for ( unsigned int i = 0; i < Size(); i++ ) {
 			v.m_v[i] = m_v[i] / obj.m_v[i];
@@ -133,7 +185,8 @@ public:
 	inline Vector&	operator/=(T a) { *this = *this / a; return *this; }
 
 protected:
-	std::vector<T>	m_v;	
+	T*				m_v;
+	unsigned int	m_size;
 };
 
 

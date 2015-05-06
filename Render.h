@@ -377,10 +377,7 @@ protected:
 		int	x1 = Min(Max(Ceil(Max(v[0].x, v[1].x, v[2].x)), 0), m_Width-1);
 		int	y1 = Min(Max(Ceil(Max(v[0].y, v[1].y, v[2].y)), 0), m_Height-1);
 
-		for ( int i = 0; i < 3; i++ ) {
-			printf("(%08x, %08x)\n", ((RT)v[i].x).GetRawValue(), ((RT)v[i].y).GetRawValue());
-		}
-
+#if 1
 		// 領域内判定式作成
 		Vector<RT>	e0(3);
 		Vector<RT>	edx(3);
@@ -389,10 +386,7 @@ protected:
 			int j = (i+1) % 3;
 			edx[i] = (RT)v[j].x - (RT)v[i].x;
 			edy[i] = (RT)v[j].y - (RT)v[i].y;
-//			e0[i]  = ((T)x0 - v[i].x) * edy[i] - ((T)y0 - v[i].y) * edx[i];
-			e0[i]  = (((RT)v[i].y * edx[i]) - ((RT)v[i].x * edy[i])) + (RT(x0) * edy[i]) - (RT(y0) * edx[i]);
-
-			printf("%d, %d, %d\n", edx[i].GetRawValue(), edy[i].GetRawValue(), e0[i].GetRawValue());
+			e0[i]  = (((RT)v[i].y * edx[i]) - ((RT)v[i].x * edy[i])) + (RT)x0 * edy[i] - (RT)y0 * edx[i];
 		}
 
 		// 記述を楽にするためにXYZもVector化
@@ -447,7 +441,8 @@ protected:
 			zy += zdy;
 		}
 
-#if 0
+#else
+
 		// 領域内判定式作成
 		cv::Vec<T, 3>	e0;
 		cv::Vec<T, 3>	edx;
@@ -457,7 +452,6 @@ protected:
 			edx[i] = v[j].x - v[i].x;
 			edy[i] = v[j].y - v[i].y;
 			e0[i]  = ((T)x0 - v[i].x) * edy[i] - ((T)y0 - v[i].y) * edx[i];
-//			e0[i]  = (v[i].y * edx[i]) - (v[i].x * edy[i]) + ((T)x0 * edy[i]) - ((T)y0 * edx[i]);
 		}
 		
 		// 記述を楽にするためにXYもMat化
@@ -504,7 +498,7 @@ protected:
 		}
 #endif
 	}
-
+	
 	// ピクセル処理
 	void PixelProc(cv::Point pt, cv::Mat_<T> z)
 	{
