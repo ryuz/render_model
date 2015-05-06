@@ -385,6 +385,7 @@ protected:
 			edx[i] = v[j].x - v[i].x;
 			edy[i] = v[j].y - v[i].y;
 			e0[i]  = ((T)x0 - v[i].x) * edy[i] - ((T)y0 - v[i].y) * edx[i];
+//			e0[i]  = (v[i].y * edx[i]) - (v[i].x * edy[i]) + ((T)x0 * edy[i]) - ((T)y0 * edx[i]);
 		}
 		
 		// ‹Lq‚ğŠy‚É‚·‚é‚½‚ß‚ÉXY‚àMat‰»

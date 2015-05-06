@@ -13,6 +13,7 @@ public:
 protected:
 	// バーテックスシェーダー
 	void VertexShader(ShaderParam& param) {
+//		std::cout << m_Matrix << std::endl;
 		param.vector = m_Matrix * param.vector;
 	}
 	
@@ -63,7 +64,8 @@ void RenderTest(void)
 	MyRender<T>	r;
 
 	// テクスチャ設定
-	cv::Mat imgTexture = cv::imread("checker.png");
+//	cv::Mat imgTexture = cv::imread("checker.png");
+	cv::Mat imgTexture = cv::imread("white.png");
 	r.SetTexture(imgTexture);
 
 	// 座標設定
@@ -127,11 +129,10 @@ void RenderTest(void)
 }
 
 
-
 // メイン関数
 int main()
 {
-	RenderTest<double>();
+	RenderTest<float>();
 	
 	return 0;
 }
