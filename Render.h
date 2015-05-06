@@ -420,16 +420,18 @@ protected:
 		Vector<GT>	z0  = (zdx * (GT)x0) + (zdy * (GT)y0) + dd;
 
 		// ラスタライズ
+		const RT		zero(0);
 		Vector<RT>		ey = e0;
 		Vector<GT>		zy = z0;
+		const	int		num = z0.Size();
+		cv::Mat_<T>		mz(num, 1);
 		cv::Point		pt;
 		for ( pt.y = y0; pt.y <= y1; pt.y++ ) {
 			Vector<RT>		ex = ey;
 			Vector<GT>		zx = zy;
 			for ( pt.x = x0; pt.x <= x1; pt.x++ ) {
-				if ( ex[0] >= (RT)0 && ex[1] >= (RT)0 && ex[2] >= (RT)0 ) {
-					cv::Mat_<T> mz(zx.Size(), 1);
-					for ( int i = 0; i < mz.rows; i++ ) {
+				if ( ex[0] >= zero && ex[1] >= zero && ex[2] >= zero ) {
+					for ( int i = 0; i < num; i++ ) {
 						mz.at<T>(i, 0) = (T)zx[i];
 					}
 					PixelProc(pt, mz);

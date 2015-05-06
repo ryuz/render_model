@@ -101,11 +101,15 @@ public:
 	// ‰ÁŽZ‘ã“ü
 	inline Vector& operator+=(const Vector& obj)
 	{
-		*this = *this + obj; return *this;
+		_ASSERT(Size() == obj.Size());
+		for ( unsigned int i = 0; i < Size(); i++ ) {
+			m_v[i] += obj.m_v[i];
+		}
+		return *this;
 	}
 	
 	// ƒXƒJƒ‰‰ÁŽZ
-	inline Vector	operator+(T a) const
+	inline Vector operator+(T a) const
 	{
 		Vector	v(Size());
 		for ( unsigned int i = 0; i < Size(); i++ ) {
@@ -113,7 +117,16 @@ public:
 		}
 		return v;
 	}
-	inline Vector&	operator+=(T a) { *this = *this + a; return *this; }
+
+	// ƒXƒJƒ‰‰ÁŽZ‘ã“ü
+	inline Vector&	operator+=(T a)
+	{
+		for ( unsigned int i = 0; i < Size(); i++ ) {
+			m_v[i] += a;
+		}
+		return *this;
+	}
+
 
 	// Œ¸ŽZ
 	inline Vector	operator-(const Vector& obj) const
@@ -125,7 +138,16 @@ public:
 		}
 		return v;
 	}
-	inline Vector&	operator-=(const Vector& obj) { *this = *this - obj; return *this; }
+
+	// Œ¸ŽZ‘ã“ü
+	inline Vector&	operator-=(const Vector& obj)
+	{
+		_ASSERT(Size() == obj.Size());
+		for ( unsigned int i = 0; i < Size(); i++ ) {
+			m_v[i] -= obj.m_v[i];
+		}
+		return *this;
+	}
 
 	// ƒXƒJƒ‰Œ¸ŽZ
 	inline Vector	operator-(T a) const
