@@ -3,6 +3,7 @@
 #ifndef __RYUZ__FIXED_POINT_NUMBER_H__
 #define __RYUZ__FIXED_POINT_NUMBER_H__
 
+#include <math.h>
 #include <assert.h>
 #include <vector>
 #include <iostream>
@@ -30,12 +31,22 @@ public:
 
 	inline FixedPointNumber(double v)
 	{
-		m_v = (T)(v * (1 << Q));
+		if ( v >= 0 ) {
+			m_v = (T)floor((v * (1 << Q)) + 0.5);
+		}
+		else {
+			m_v = (T)-floor(fabs(v * (1 << Q)) + 0.5);
+		}
 	}
 
 	inline FixedPointNumber(float v)
 	{
-		m_v = (T)(v * (1 << Q));
+		if ( v >= 0 ) {
+			m_v = (T)floor((v * (1 << Q)) + 0.5f);
+		}
+		else {
+			m_v = (T)-floor(fabs(v * (1 << Q)) + 0.5f);
+		}
 	}
 
 	inline FixedPointNumber(int v)
@@ -90,7 +101,35 @@ public:
 		t.m_v = m_v + obj.m_v;
 		return t;
 	}
-	
+
+	inline FixedPointNumber& operator++()
+	{
+		++m_v;
+		return *this;
+	}
+
+	inline FixedPointNumber& operator--()
+	{
+		--m_v;
+		return *this;
+	}
+
+	inline bool operator==(const FixedPointNumber& obj) const
+	{
+		return (m_v == obj.m_v);
+	}
+
+	inline bool operator<(const FixedPointNumber& obj) const
+	{
+		return (m_v < obj.m_v);
+	}
+
+	inline bool operator>(const FixedPointNumber& obj) const
+	{
+		return (m_v > obj.m_v);
+	}
+
+
 	inline FixedPointNumber& operator+=(const FixedPointNumber& obj)
 	{
 		m_v += obj.m_v;

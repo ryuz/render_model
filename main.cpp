@@ -25,17 +25,23 @@ protected:
 		cv::Point pt;
 		pt.x = (int)param.vector.at<T>(0, 0);
 		pt.y = (int)param.vector.at<T>(1, 0); 
-		float	z = param.vector.at<T>(2, 0); 
+		T  z = param.vector.at<T>(2, 0); 
 
 		// 深度テスト
 		if ( z < m_DepthBuffer.at<T>(pt) ) {
 			return;
 		}
+		m_DepthBuffer.at<T>(pt) = z;
 
+#if 1
+		m_ImageBuffer.at<cv::Vec3b>(pt)[0] = m_ImageBuffer.at<cv::Vec3b>(pt)[0] + 100;
+		m_ImageBuffer.at<cv::Vec3b>(pt)[1] = m_ImageBuffer.at<cv::Vec3b>(pt)[1] + 100;
+		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = m_ImageBuffer.at<cv::Vec3b>(pt)[2] + 100;
+#else
 		m_ImageBuffer.at<cv::Vec3b>(pt)[0] = (uchar)param.color[0];
 		m_ImageBuffer.at<cv::Vec3b>(pt)[1] = (uchar)param.color[1];
 		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = (uchar)param.color[2];
-
+#endif
 
 		// テクスチャ(とりあえずニアレストネイバー)
 #if 0
@@ -55,7 +61,7 @@ protected:
 //		int vv = (int)((m_Textures[0].rows-1) * v + 0.5);
 		int uu = (int)((m_Textures[0].cols-1) * u);
 		int vv = (int)((m_Textures[0].rows-1) * v);
-		m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
+//		m_ImageBuffer.at<cv::Vec3b>(pt) = m_Textures[0].at<cv::Vec3b>(vv, uu);
 	}
 };
 
@@ -76,7 +82,8 @@ void RenderTest(void)
 	r.Viewport(0, 0, 640, 480);
 	r.MatrixMode(MyRender<T, RT, GT>::PROJECTION);
 	r.Perspective(20.0f, 1.0f, 0.1f, 100.0f);
-	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
+//	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
+	r.LookAt(cv::Vec3f(0, 0, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
 
 
 	// 描画
@@ -139,7 +146,8 @@ void RenderTest(void)
 int main()
 {
 //	RenderTest< double, double, double >();
-	RenderTest< float, FixedPointNumber<4, 32>, float >();
+//	RenderTest< float, float, float >();
+	RenderTest< float, FixedPointNumber<8, 24>, float >();
 //	RenderTest< float, FixedPointNumber<14, 32>, FixedPointNumber<18, 32, long long> >();
 	
 	return 0;

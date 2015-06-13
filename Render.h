@@ -9,7 +9,7 @@
 #include "Vector.h"
 
 
-template <typename T, typename RT=T, typename GT=T>
+template <typename T, typename RT, typename GT>
 class Render
 {
 public:
@@ -150,7 +150,7 @@ public:
 	void Perspective(T fovy, T aspect, T zNear, T zFar)
 	{
 		T	t = (T)1.0 / (T)tan(fovy * (T)((3.1415926535897932384626/180.0)/2.0));
-				
+		
 		cv::Mat_<T>	mat = (cv::Mat_<T>(4, 4) <<
 				t/aspect, 0,                               0,                                   0,
 				0,        t,                               0,                                   0,
@@ -387,6 +387,9 @@ protected:
 			edx[i] = (RT)v[j].x - (RT)v[i].x;
 			edy[i] = (RT)v[j].y - (RT)v[i].y;
 			e0[i]  = (((RT)v[i].y * edx[i]) - ((RT)v[i].x * edy[i])) + (RT)x0 * edy[i] - (RT)y0 * edx[i];
+
+			// エッジのケア
+//			if ( edy[i] < (RT)0 || (edy[i] == (RT)0 && edx[i] > (RT)0 ) ) { --e0[i]; }
 		}
 
 		// 記述を楽にするためにXYZもVector化
