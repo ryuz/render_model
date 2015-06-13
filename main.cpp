@@ -33,7 +33,7 @@ protected:
 		}
 		m_DepthBuffer.at<T>(pt) = z;
 
-#if 1
+#if 0
 		m_ImageBuffer.at<cv::Vec3b>(pt)[0] = m_ImageBuffer.at<cv::Vec3b>(pt)[0] + 100;
 		m_ImageBuffer.at<cv::Vec3b>(pt)[1] = m_ImageBuffer.at<cv::Vec3b>(pt)[1] + 100;
 		m_ImageBuffer.at<cv::Vec3b>(pt)[2] = m_ImageBuffer.at<cv::Vec3b>(pt)[2] + 100;
@@ -82,8 +82,8 @@ void RenderTest(void)
 	r.Viewport(0, 0, 640, 480);
 	r.MatrixMode(MyRender<T, RT, GT>::PROJECTION);
 	r.Perspective(20.0f, 1.0f, 0.1f, 100.0f);
-//	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
-	r.LookAt(cv::Vec3f(0, 0, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
+	r.LookAt(cv::Vec3f(0, 5, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
+//	r.LookAt(cv::Vec3f(0, 0, 3), cv::Vec3f(0, 0, 0), cv::Vec3f(0, 1, 0));
 
 
 	// •`‰æ

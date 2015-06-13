@@ -389,7 +389,7 @@ protected:
 			e0[i]  = (((RT)v[i].y * edx[i]) - ((RT)v[i].x * edy[i])) + (RT)x0 * edy[i] - (RT)y0 * edx[i];
 
 			// エッジのケア
-//			if ( edy[i] < (RT)0 || (edy[i] == (RT)0 && edx[i] > (RT)0 ) ) { --e0[i]; }
+			if ( edy[i] < (RT)0 || (edy[i] == (RT)0 && edx[i] > (RT)0 ) ) { --e0[i]; }
 		}
 
 		// 記述を楽にするためにXYZもVector化
