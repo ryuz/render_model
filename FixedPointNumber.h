@@ -165,13 +165,23 @@ public:
 	inline FixedPointNumber operator/(const FixedPointNumber& obj) const
 	{
 		FixedPointNumber t;
-		t.m_v = (T)(((LT)m_v << Q) / (LT)obj.m_v);
+		if ( obj.m_v != 0 ) {
+			t.m_v = (T)(((LT)m_v << Q) / (LT)obj.m_v);
+		}
+		else {
+			t.m_v = m_v > 0 ? 0x7fffffff : 0x80000000;
+		}
 		return t;
 	}
 
 	inline FixedPointNumber& operator/=(const FixedPointNumber& obj)
 	{
-		m_v = (T)(((LT)m_v << Q) / (LT)obj.m_v);
+		if ( obj.m_v != 0 ) {
+			m_v = (T)(((LT)m_v << Q) / (LT)obj.m_v);
+		}
+		els {
+			m_v = m_v > 0 ? 0x7fffffff : 0x80000000;
+		}
 		return *this;
 	}
 	

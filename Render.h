@@ -117,6 +117,7 @@ public:
 	void		LoadMatrix(cv::Mat_<T> mat)	{ SetMatrix(mat); }
 	void		MultMatrix(cv::Mat_<T> mat)	{ SetMatrix(GetMatrix() * mat); }
 
+	cv::Mat		GetDrawMatrix(void)			{ return m_Matrix.clone(); }
 
 	// ビューポート設定
 	void Viewport(int x, int y, int width,  int height)
@@ -422,6 +423,18 @@ protected:
 		Vector<GT>	dd  = vz[0] - (zdx * vx[0]) - (zdy * vy[0]);
 		Vector<GT>	z0  = (zdx * (GT)x0) + (zdy * (GT)y0) + dd;
 
+		// debug
+		{
+			printf("(%d, %d)-(%d, %d) w:%d h:%d\n", x0, y0, x1, y1, x1-x0, y1-y0);
+			printf("e0  : %08x %08x %08x\n", e0[0].GetRawValue(), e0[1].GetRawValue(), e0[2].GetRawValue());
+			printf("edx : %08x %08x %08x\n", edx[0].GetRawValue(), edx[1].GetRawValue(), edx[2].GetRawValue());
+			printf("edy : %08x %08x %08x\n", edy[0].GetRawValue(), edy[1].GetRawValue(), edy[2].GetRawValue());
+
+			printf("z0  : %08x %08x %08x\n", z0[2].GetRawValue(),  z0[3].GetRawValue(),  z0[4].GetRawValue());
+			printf("zdx : %08x %08x %08x\n", zdx[2].GetRawValue(), zdx[3].GetRawValue(), zdx[4].GetRawValue());
+			printf("zdy : %08x %08x %08x\n", zdy[2].GetRawValue(), zdy[3].GetRawValue(), zdy[4].GetRawValue());
+		}
+
 		// ラスタライズ
 		const RT		zero(0);
 		Vector<RT>		ey = e0;
@@ -433,7 +446,12 @@ protected:
 			Vector<RT>		ex = ey;
 			Vector<GT>		zx = zy;
 			for ( pt.x = x0; pt.x <= x1; pt.x++ ) {
+
+		//		printf("ex : %08x %08x %08x\n", ex[0].GetRawValue(), ex[1].GetRawValue(), ex[2].GetRawValue());
+
+
 				if ( ex[0] >= zero && ex[1] >= zero && ex[2] >= zero ) {
+		//		if ( (RT)256.0 >= ex[0] && ex[0] >= (RT)-256.0 && ex[1] >= zero && ex[2] >= zero ) {
 					for ( int i = 0; i < num; i++ ) {
 						mz.at<T>(i, 0) = (T)zx[i];
 					}
