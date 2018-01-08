@@ -16,7 +16,10 @@
 #include <map>
 
 
-template <class T=float, class TI=int64_t, int Q=10>
+//template <class T=float, class TI=int64_t, int Q=16, bool perspective_correction=true>
+template <class T=float, class TI=int64_t, int Q=18, bool perspective_correction=true>
+//template <class T=double, class TI=double, int Q=1, bool perspective_correction=true>
+//template <class T=double, class TI=double, int Q=1, bool perspective_correction=false>
 class JellyGL
 {
 	// -----------------------------------------
@@ -52,6 +55,15 @@ protected:
 		std::vector<PolygonRegion>	region;			// 描画範囲
 		size_t						vertex[3];		// 頂点インデックス		
 		size_t						tex_cord[3];	// テクスチャ座標インデックス
+
+		bool CheckRegion(const std::vector<bool>& edge_flags) {
+			for ( auto r : region ) {
+				if ( !(edge_flags[r.edge] ^ r.inverse ^ 1) ) {
+					return false;
+				}
+			}
+			return true;
+		}
 	};
 	
 	struct RasterizeParam {
@@ -59,8 +71,29 @@ protected:
 		TI	dy;
 		TI	offset;
 
-		TI calc(int x, int y) const { return dx*(TI)x + dy*(TI)y + offset; }
+		TI CalcInt(int x, int y) const { return dx*(TI)x + dy*(TI)y + offset; }
+		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << Q)); }
 	};
+
+
+	// -----------------------------------------
+	//  メンバ変数
+	// -----------------------------------------
+protected:
+	std::vector<Vec3>			m_vertex;			// 頂点リスト
+	std::vector<Vec2>			m_tex_cord;			// テクスチャ座標リスト
+	std::vector<Face>			m_face;				// 描画面
+	std::vector<Polygon>		m_polygon;			// ポリゴンデータ
+
+	Mat4						m_matrix;			// 描画用マトリックス
+	std::vector <Vec4>			m_draw_vertex;		// 頂点リスト
+	
+	std::vector<Edge>			m_edge;				// 辺
+	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
+
+	std::vector<RasterizeParam>					m_rasterizeEdge;	// 辺
+	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;		// パラメータ
+
 
 
 	// -----------------------------------------
@@ -146,44 +179,6 @@ public:
 				polygon.tex_cord[i] = fp[i].tex_cord;
 			}
 
-#if 0
-				param.x[i] = m_vertex[fp[i].vertex][0]; 
-				param.y[i] = m_vertex[fp[i].vertex][1];
-				u[i] = 1 / m_tex_cord[fp[i].tex_cord][0];
-				v[i] = 1 / m_tex_cord[fp[i].tex_cord][1];
-				w[i] = 1 / m_vertex[fp0.vertex][2],     1/m_vertex[fp1.vertex][0],     1/m_vertex[fp2.vertex][0]};
-			}
-
-			Vec3 w = { 1/m_vertex[fp0.vertex][2],     1/m_vertex[fp1.vertex][0],     1/m_vertex[fp2.vertex][0]};
-			Vec3 u = { 1/m_tex_cord[fp0.tex_cord][0], 1/m_tex_cord[fp1.tex_cord][0], 1/m_tex_cord[fp2.tex_cord][0]};
-			Vec3 v = { 1/m_tex_cord[fp0.tex_cord][1], 1/m_tex_cord[fp1.tex_cord][1], 1/m_tex_cord[fp2.tex_cord][1]};
-	//		std::vector<Vec3> param;
-			polygon.param.push_back(w);
-			polygon.param.push_back(u);
-			polygon.param.push_back(v);
-
-			/*
-			Vec3 vertex0 = m_vertex[fp0.vertex];
-			Vec3 vertex1 = m_vertex[fp1.vertex];
-			Vec3 vertex2 = m_vertex[fp2.vertex];
-			for ( auto param : param ) {
-				// 外積計算
-				Vec3	vector0 = {vertex1[0] - vertex0[0], vertex1[1] - vertex0[1], param[1] - param[1]};
-				Vec3	vector1 = {vertex2[0] - vertex0[0], vertex2[1] - vertex0[1], param[2] - param[1]};
-				Vec3	cross   = CrossVec3(vector0, vector1);
-				T	dx     = -cross[0] / cross[2];
-				T	dy     = -cross[1] / cross[2];
-				T	offset = (cross[0]*vertex0[0] + cross[1]*vertex0[1] + cross[2]*param[0]) / cross[2];
-
-				RasterizeParam	rp;
-				rp.dx     = (TI)(dx / (1 << Q));
-				rp.dy     = (TI)(dy / (1 << Q));
-				rp.offset = (TI)(offset / (1 << Q));
-				polygon.param.push_back(rp);
-			}
-			*/
-#endif
-
 			m_polygon.push_back(polygon);
 		}
 	}
@@ -194,22 +189,32 @@ public:
 		// 頂点座標計算
 		m_draw_vertex.clear();
 		for ( const auto& v : m_vertex ) {
-			m_draw_vertex.push_back(MulMat(m_matrix, v));
+			m_draw_vertex.push_back(MulPerspectiveVec4(m_matrix, v));
 		}
 
 		// ラスタライザパラメータ生成
 		m_rasterizeEdge.clear();
 		for ( auto edge : m_edge ) {
-			m_rasterizeEdge.push_back(EdgeToRasterizeParam( m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
+			m_rasterizeEdge.push_back(EdgeToRasterizeParam(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
 		}
 		
 		m_rasterizeParam.clear();
 		for ( auto p : m_polygon ) {
 			Vec3 param[3];
 			for ( int i = 0; i < 3; ++i ) {
-				param[0][i] = 1 / m_draw_vertex[p.vertex[i]][2];	// w
-				param[1][i] = 1 / m_tex_cord[p.tex_cord[i]][0];		// u
-				param[2][i] = 1 / m_tex_cord[p.tex_cord[i]][1];		// v
+				T u = m_tex_cord[p.tex_cord[i]][0];
+				T v = m_tex_cord[p.tex_cord[i]][1];
+				T w = m_draw_vertex[p.vertex[i]][3];
+				if ( perspective_correction ) {
+					param[0][i] = 1 / w;
+					param[1][i] = u / w;
+					param[2][i] = v / w;
+				}
+				else {
+					param[0][i] = w;
+					param[1][i] = u;
+					param[2][i] = v;
+				}
 			}
 
 			std::vector<RasterizeParam>	rp;
@@ -217,7 +222,7 @@ public:
 				Vec3 vertex[3];
 				for ( int j = 0; j < 3; ++j ) {
 					vertex[j][0] =  m_draw_vertex[p.vertex[j]][0];	// x
-					vertex[j][1] =  m_draw_vertex[p.vertex[j]][0];	// y
+					vertex[j][1] =  m_draw_vertex[p.vertex[j]][1];	// y
 					vertex[j][2] =  param[i][j];					// param
 				}
 				rp.push_back(ParamToRasterizeParam(vertex));
@@ -225,10 +230,9 @@ public:
 			m_rasterizeParam.push_back(rp);
 		}
 		
-		std::vector<bool>	edge;
+		std::vector<bool>	edge_flags(m_rasterizeEdge.size());
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
-
 #if 0
 				PixelParam pp = {};
 				bool v = (m_rasterizeEdge[0].calc(x, y) >= 0
@@ -237,22 +241,35 @@ public:
 						&& !(m_rasterizeEdge[3].calc(x, y) >= 0));
 				proc(x, y, v, pp, user);
 #else
-				edge.clear();
-				for ( const auto& e : m_rasterizeEdge ) {
-					edge.push_back(e.calc(x, y) >= 0);
+				for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
+					edge_flags[i] = (m_rasterizeEdge[i].CalcInt(x, y) >= 0);
 				}
 
-				for ( auto& p : m_polygon ) {
-					bool v = true;
-					for ( auto& r : p.region ) {
-						if ( r.inverse ? edge[r.edge] : !edge[r.edge] ) {
-							v = false; 
+				PixelParam	pp = {};
+				bool		valid = false;
+				for ( size_t i = 0; i < m_polygon.size(); ++i ) {
+					if ( m_polygon[i].CheckRegion(edge_flags) ) {
+						T w, u, v;
+						if ( perspective_correction ) {
+							w = 1 / (T)m_rasterizeParam[i][0].CalcFloat(x, y);
+							u = m_rasterizeParam[i][1].CalcFloat(x, y) * w;
+							v = m_rasterizeParam[i][2].CalcFloat(x, y) * w;
 						}
-					}
+						else {
+							w = m_rasterizeParam[i][0].CalcFloat(x, y);
+							u = m_rasterizeParam[i][1].CalcFloat(x, y);
+							v = m_rasterizeParam[i][2].CalcFloat(x, y);
+						}
 
-					PixelParam pp = {};
-					proc(x, y, v, pp, user);
+				//		if ( !valid || pp.t < w ) {
+							valid = true;
+							pp.t = w;
+							pp.u = u;
+							pp.v = v;
+				//		}
+					}
 				}
+				proc(x, y, valid, pp, user);
 #endif
 			}
 		}
@@ -261,7 +278,7 @@ public:
 
 protected:
 	// エッジ判定パラメータ算出
-	RasterizeParam	EdgeToRasterizeParam(Vec3 v0, Vec3 v1)
+	RasterizeParam	EdgeToRasterizeParam(Vec4 v0, Vec4 v1)
 	{
 		RasterizeParam	rp;
 		
@@ -274,8 +291,6 @@ protected:
 
 	RasterizeParam	ParamToRasterizeParam(Vec3 vertex[3])
 	{
-//		Vec3	vector0 = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - param[1]};
-//		Vec3	vector1 = {v2[0] - v0[0], v2[1] - v0[1], v1[2] - param[1]};
 		Vec3	vector0 = SubVec3(vertex[1], vertex[0]);
 		Vec3	vector1 = SubVec3(vertex[2], vertex[0]);
 		Vec3	cross   = CrossVec3(vector0, vector1);
@@ -284,37 +299,19 @@ protected:
 		T		offset = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
 
 		RasterizeParam	rp;
-		rp.dx     = (TI)(dx / (1 << Q));
-		rp.dy     = (TI)(dy / (1 << Q));
-		rp.offset = (TI)(offset / (1 << Q));
+		rp.dx     = (TI)(dx * (1 << Q));
+		rp.dy     = (TI)(dy * (1 << Q));
+		rp.offset = (TI)(offset * (1 << Q));
 		return rp;
 	}
 	
-	// -----------------------------------------
-	//  メンバ変数
-	// -----------------------------------------
-protected:
-	std::vector<Vec3>			m_vertex;			// 頂点リスト
-	std::vector<Vec2>			m_tex_cord;			// テクスチャ座標リスト
-	std::vector<Face>			m_face;				// 描画面
-	std::vector<Polygon>		m_polygon;			// ポリゴンデータ
-
-	Mat4						m_matrix;			// 描画用マトリックス
-	std::vector <Vec3>			m_draw_vertex;		// 頂点リスト
-	
-	std::vector<Edge>			m_edge;				// 辺
-	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
-
-	std::vector<RasterizeParam>					m_rasterizeEdge;	// 辺
-	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;		// パラメータ
-
 
 	// -----------------------------------------
 	//  行列計算補助関数
 	// -----------------------------------------
 public:
 	// 単位行列生成
-	static	Mat4	IdentityMat4(void)
+	static	Mat4 IdentityMat4(void)
 	{
 		Mat4	mat;
 		for ( size_t i = 0; i < mat.size(); ++i ) {
@@ -324,9 +321,60 @@ public:
 		}
 		return mat;
 	}
+	
+	// 単位行列生成
+	static	Mat4 ZeroMat4(void)
+	{
+		Mat4	mat;
+		for ( size_t i = 0; i < mat.size(); ++i ) {
+			for ( size_t j = 0; j < mat[i].size(); ++j ) {
+				mat[i][j] = (T)0;
+			}
+		}
+		return mat;
+	}
+
+	// 視点設定
+	static	Mat4 LookAtMat4(Vec3 eye, Vec3 center, Vec3 up)
+	{
+		up = NormalizeVec3(up);
+		Vec3 f = NormalizeVec3(SubVec3(center, eye));
+		Vec3 s = CrossVec3(f, up);
+		Vec3 u = CrossVec3(NormalizeVec3(s), f);
+		Mat4 mat = { s[0],  s[1],  s[2],  0,
+				     u[0],  u[1],  u[2],  0,
+				    -f[0], -f[1], -f[2],  0,
+			            0,     0,     0,  1};
+		return MulMat(mat, TranslatedMat4(NegVec3(eye)));
+	}
+
+	// 平行移動
+	static	Mat4 TranslatedMat4(Vec3 translated)
+	{
+		Mat4 mat = IdentityMat4();
+		mat[0][3] = translated[0];
+		mat[1][3] = translated[1];
+		mat[2][3] = translated[2];
+		return mat;
+	}
+
+	// 視点設定
+	static	Mat4 PerspectiveMat4(T fovy, T aspect, T zNear, T zFar)
+	{
+		fovy *= 3.14159265358979 / 180.0;
+
+		T f = (T)(1.0/tan(fovy/2.0));
+		Mat4 mat = ZeroMat4();
+		mat[0][0] = f / aspect;
+		mat[1][1] = f;
+		mat[2][2] = (zFar+zNear)/(zNear-zFar);
+		mat[2][3] = (2*zFar*zNear)/(zNear-zFar);
+		mat[3][2] = -1;
+		return mat;
+	}
 
 	// 行列乗算
-	Mat4 MulMat(const Mat4 matSrc0, const Mat4 matSrc1)
+	static	Mat4 MulMat(const Mat4 matSrc0, const Mat4 matSrc1)
 	{
 		Mat4	matDst;
 		for ( size_t i = 0; i < matDst.size(); i++ ) {
@@ -342,7 +390,7 @@ public:
 
 
 	// 行列のベクタへの適用
-	Vec4 MulMat(const Mat4 matSrc, const Vec4 vecSrc)
+	static	Vec4 MulMat(const Mat4 matSrc, const Vec4 vecSrc)
 	{
 		Vec4 vecDst;
 		for ( size_t i = 0; i < vecDst.size(); i++ ) {
@@ -355,7 +403,7 @@ public:
 	}
 	
 	// 行列のベクタへの適用(射影)
-	Vec3 MulMat(const Mat4 matSrc, const Vec3 vecSrc)
+	static	Vec3 MulPerspectiveVec3(const Mat4 matSrc, const Vec3 vecSrc)
 	{
 		Vec4	vecIn;
 		Vec4	vecOut;
@@ -373,23 +421,70 @@ public:
 		return vecDst;
 	}
 	
-	// ベクトルの減算
-	Vec3 SubVec3(const Vec3 vec0, const Vec3 vec1) {
-		Vec3 v;
-		for ( size_t i = 0; i < v.size(); i++ ) {
-			v[i] = vec0[i] - vec1[i];
+
+	// 行列のベクタへの適用(射影)
+	static	Vec4 MulPerspectiveVec4(const Mat4 matSrc, const Vec3 vecSrc)
+	{
+		Vec4	vecIn;
+		Vec4	vecDst;
+
+		vecIn[0] = vecSrc[0];
+		vecIn[1] = vecSrc[1];
+		vecIn[2] = vecSrc[2];
+		vecIn[3] = 1.0f;
+		vecDst = MulMat(matSrc, vecIn);	
+		vecDst[0] = vecDst[0] / vecDst[3];
+		vecDst[1] = vecDst[1] / vecDst[3];
+		vecDst[2] = vecDst[2] / vecDst[3];
+
+		return vecDst;
+	}
+
+	// ベクトルの符号反転
+	static	Vec3 NegVec3(const Vec3 vecSrc) {
+		Vec3 vecDst;
+		for ( size_t i = 0; i < vecDst.size(); i++ ) {
+			vecDst[i] = -vecSrc[i];
 		}
-		return v;
+		return vecDst;
+	}
+
+	// ベクトルの減算
+	static	Vec3 SubVec3(const Vec3 vec0, const Vec3 vec1) {
+		Vec3 vecDst;
+		for ( size_t i = 0; i < vecDst.size(); i++ ) {
+			vecDst[i] = vec0[i] - vec1[i];
+		}
+		return vecDst;
 	}
 
 	// ベクトルの外積
-	Vec3 CrossVec3(const Vec3 vec0, const Vec3 vec1)
+	static	Vec3 CrossVec3(const Vec3 vec0, const Vec3 vec1)
 	{
 		Vec3	vecCross;
 		vecCross[0] = vec0[1]*vec1[2] - vec0[2]*vec1[1];
 		vecCross[1] = vec0[2]*vec1[0] - vec0[0]*vec1[2];
 		vecCross[2] = vec0[0]*vec1[1] - vec0[1]*vec1[0];
 		return vecCross;
+	}
+
+	static	T NormVec3(const Vec3 vec)
+	{
+		T norm = 0;
+		for ( size_t i = 0; i < vec.size(); i++ ) {
+			norm += vec[i] * vec[i];
+		}
+		return sqrt(norm);
+	}
+
+	static	Vec3 NormalizeVec3(const Vec3 vec)
+	{
+		T norm = NormVec3(vec);
+		Vec3	vecDst;
+		for ( size_t i = 0; i < vecDst.size(); i++ ) {
+			vecDst[i] = vec[i] / norm;
+		}
+		return vecDst;
 	}
 };
 

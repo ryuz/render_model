@@ -23,8 +23,8 @@ std::array<float, 3> table_vertex[8] = {
 std::array<float, 2> table_tex_cord[4] = {
 	{0, 0},
 	{1, 0},
-	{0, 1},
 	{1, 1},
+	{0, 1},
 };
 
 
@@ -32,11 +32,18 @@ std::array<float, 2> table_tex_cord[4] = {
 
 
 cv::Mat img;
+cv::Mat imgTex;
+
 
 void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 {
 	if ( polygon ) {
-		img.at<cv::Vec3b>(y, x) = cv::Vec3b(255, 0, 0);
+		float u = MAX(0.0f, MIN(1.0f, pp.u));
+		float v = MAX(0.0f, MIN(1.0f, pp.v));
+		u *= (imgTex.cols-1);
+		v *= (imgTex.rows-1);
+		
+		img.at<cv::Vec3b>(y, x) = imgTex.at<cv::Vec3b>(v, u);
 	}
 }
 
@@ -44,6 +51,8 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 
 void rasterizer_test(void)
 {
+//	imgTex = cv::imread("DSC_0030.jpg");
+	imgTex = cv::imread("Penguins.jpg");
 	img = cv::Mat::zeros(480, 640, CV_8UC3);
 
 	JGL	jgl;
@@ -61,7 +70,7 @@ void rasterizer_test(void)
 	f.push_back(JGL::FacePoint(1, 3));
 	face_table.push_back(f);
 
-#if 0
+#if 1
 	f.clear();
 	f.push_back(JGL::FacePoint(7, 0));
 	f.push_back(JGL::FacePoint(6, 1));
@@ -101,12 +110,17 @@ void rasterizer_test(void)
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
+	JGL::Mat4	matLookAt       = JGL::LookAtMat4({2, 2, +5}, {0, 0, 0}, {0, 1, 0});
+	JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(20.0, 1.0, 0.1, 1000);
+
 	JGL::Mat4	mat = JGL::IdentityMat4();
-	mat[0][0] = 10.0;
-	mat[1][1] = 10.0;
+	mat[0][0] = 100.0;
+	mat[1][1] = 100.0;
 	mat[0][3] = 640/2;
 	mat[1][3] = 480/2;
-	jgl.SetMatrix(mat);
+//	jgl.SetMatrix(JGL::MulMat(mat, matLookAt));
+	jgl.SetMatrix(JGL::MulMat(mat, JGL::MulMat(matPerspectivet, matLookAt)));
+//	jgl.SetMatrix(mat);
 
 	jgl.Draw(640, 480, RenderProc);
 
