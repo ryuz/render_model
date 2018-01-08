@@ -165,12 +165,16 @@ void RenderTest(void)
 
 #include "FixedPointNumber.h"
 
+
 void test(void);
+void rasterizer_test(void);
+
 
 // ƒƒCƒ“ŠÖ”
 int main()
 {
-	test();
+	rasterizer_test();
+//	test();
 	return 0;
 
 //	RenderTest< double, double, double >();

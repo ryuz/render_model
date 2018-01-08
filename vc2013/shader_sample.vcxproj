@@ -86,7 +86,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\JellyGL.cpp" />
     <ClCompile Include="..\main.cpp" />
     <ClCompile Include="..\rasterizer_test.cpp" />
   </ItemGroup>
