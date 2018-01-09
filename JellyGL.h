@@ -17,7 +17,7 @@
 
 
 //template <class T=float, class TI=int64_t, int Q=16, bool perspective_correction=true>
-template <class T=float, class TI=int64_t, int Q=18, bool perspective_correction=true>
+template <class T=float, class TI=int64_t, int Q=20, bool perspective_correction=true>
 //template <class T=double, class TI=double, int Q=1, bool perspective_correction=true>
 //template <class T=double, class TI=double, int Q=1, bool perspective_correction=false>
 class JellyGL
@@ -233,14 +233,6 @@ public:
 		std::vector<bool>	edge_flags(m_rasterizeEdge.size());
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
-#if 0
-				PixelParam pp = {};
-				bool v = (m_rasterizeEdge[0].calc(x, y) >= 0
-						&& m_rasterizeEdge[1].calc(x, y) >= 0
-						&& !(m_rasterizeEdge[2].calc(x, y) >= 0)
-						&& !(m_rasterizeEdge[3].calc(x, y) >= 0));
-				proc(x, y, v, pp, user);
-#else
 				for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
 					edge_flags[i] = (m_rasterizeEdge[i].CalcInt(x, y) >= 0);
 				}
@@ -357,6 +349,27 @@ public:
 		mat[2][3] = translated[2];
 		return mat;
 	}
+	
+	// 回転
+	static	Mat4 RotateMat4(T angle,  Vec3 up)
+	{
+		angle *= 3.14159265358979 / 180.0;
+		up = NormalizeVec3(up);
+
+		T s = sin(angle);
+		T c = cos(angle);
+		Mat4 mat = IdentityMat4();
+		mat[0][0] = up[0]*up[0]*(1-c)+c;
+		mat[0][1] = up[0]*up[1]*(1-c)-up[2]*s;
+		mat[0][2] = up[0]*up[2]*(1-c)+up[1]*s;
+		mat[1][0] = up[1]*up[0]*(1-c)+up[2]*s;
+		mat[1][1] = up[1]*up[1]*(1-c)+c;
+		mat[1][2] = up[1]*up[2]*(1-c)-up[0]*s;
+		mat[2][0] = up[2]*up[0]*(1-c)-up[1]*s;
+		mat[2][1] = up[2]*up[1]*(1-c)+up[0]*s;
+		mat[2][2] = up[2]*up[2]*(1-c)+c;
+		return mat;
+	}
 
 	// 視点設定
 	static	Mat4 PerspectiveMat4(T fovy, T aspect, T zNear, T zFar)
@@ -457,7 +470,7 @@ public:
 		}
 		return vecDst;
 	}
-
+	
 	// ベクトルの外積
 	static	Vec3 CrossVec3(const Vec3 vec0, const Vec3 vec1)
 	{
@@ -487,6 +500,7 @@ public:
 		return vecDst;
 	}
 };
+
 
 
 #endif	// __RYUZ__JELLY_GL__H__

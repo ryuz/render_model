@@ -110,22 +110,29 @@ void rasterizer_test(void)
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
-	JGL::Mat4	matLookAt       = JGL::LookAtMat4({2, 2, +5}, {0, 0, 0}, {0, 1, 0});
-	JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(20.0, 1.0, 0.1, 1000);
+	float angle = 0;
+	for ( ; ; ) {
+		JGL::Mat4	matRotate		= JGL::RotateMat4(angle, {0, 1, 0});
+		JGL::Mat4	matLookAt       = JGL::LookAtMat4({2, 2, +5}, {0, 0, 0}, {0, 1, 0});
+		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(20.0, 1.0, 0.1, 1000);
 
-	JGL::Mat4	mat = JGL::IdentityMat4();
-	mat[0][0] = 100.0;
-	mat[1][1] = 100.0;
-	mat[0][3] = 640/2;
-	mat[1][3] = 480/2;
-//	jgl.SetMatrix(JGL::MulMat(mat, matLookAt));
-	jgl.SetMatrix(JGL::MulMat(mat, JGL::MulMat(matPerspectivet, matLookAt)));
-//	jgl.SetMatrix(mat);
+		JGL::Mat4	mat = JGL::IdentityMat4();
+		mat[0][0] = 100.0;
+		mat[1][1] = 100.0;
+		mat[0][3] = 640/2;
+		mat[1][3] = 480/2;
+	//	jgl.SetMatrix(JGL::MulMat(mat, matLookAt));
+		jgl.SetMatrix(JGL::MulMat(mat, JGL::MulMat(matPerspectivet, JGL::MulMat(matLookAt, matRotate))));
+	//	jgl.SetMatrix(mat);
 
-	jgl.Draw(640, 480, RenderProc);
+		img = cv::Mat::zeros(480, 640, CV_8UC3);
+		jgl.Draw(640, 480, RenderProc);
 
-	cv::imshow("img", img);
-	cv::waitKey();
+		cv::imshow("img", img);
+		cv::waitKey(10);
+
+		angle += 1;
+	}
 }
 
 
