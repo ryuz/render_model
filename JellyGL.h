@@ -67,11 +67,14 @@ protected:
 	};
 	
 	struct RasterizeParam {
-		TI	dx;
-		TI	dy;
-		TI	offset;
+		TI		dx;
+		TI		dy;
+		TI		c;
 
-		TI CalcInt(int x, int y) const { return dx*(TI)x + dy*(TI)y + offset; }
+		TI CalcInt(int x, int y) const
+		{
+			return dx*(TI)x + dy*(TI)y + c;
+		}
 		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << Q)); }
 	};
 
@@ -234,7 +237,8 @@ public:
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
 				for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
-					edge_flags[i] = (m_rasterizeEdge[i].CalcInt(x, y) >= 0);
+					TI val = m_rasterizeEdge[i].CalcInt(x, y);
+					edge_flags[i] = (val >= 0);
 				}
 
 				PixelParam	pp = {};
@@ -262,7 +266,6 @@ public:
 					}
 				}
 				proc(x, y, valid, pp, user);
-#endif
 			}
 		}
 	}
@@ -274,9 +277,13 @@ protected:
 	{
 		RasterizeParam	rp;
 		
-		rp.dx     = (TI)(v1[1] - v0[1]);
-		rp.dy     = (TI)(v0[0] - v1[0]);
-		rp.offset = (TI)-((v0[1] * rp.dy) + (v0[0] * rp.dx));
+		rp.dx = (TI)(v1[1] - v0[1]);
+		rp.dy = (TI)(v0[0] - v1[0]);
+		rp.c  = (TI)-((v0[1] * rp.dy) + (v0[0] * rp.dx));
+
+//		if ( (rp.dy > 0 || (rp.dy == 0 && rp.dx > 0)) ) {
+//			rp.c++;
+//		}
 
 		return rp;
 	}
@@ -286,14 +293,16 @@ protected:
 		Vec3	vector0 = SubVec3(vertex[1], vertex[0]);
 		Vec3	vector1 = SubVec3(vertex[2], vertex[0]);
 		Vec3	cross   = CrossVec3(vector0, vector1);
-		T		dx     = -cross[0] / cross[2];
-		T		dy     = -cross[1] / cross[2];
-		T		offset = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
+
+		T		dx = -cross[0] / cross[2];
+		T		dy = -cross[1] / cross[2];
+		T		c  = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
 
 		RasterizeParam	rp;
-		rp.dx     = (TI)(dx * (1 << Q));
-		rp.dy     = (TI)(dy * (1 << Q));
-		rp.offset = (TI)(offset * (1 << Q));
+		rp.dx = (TI)(dx * (1 << Q));
+		rp.dy = (TI)(dy * (1 << Q));
+		rp.c  = (TI)(c  * (1 << Q));
+
 		return rp;
 	}
 	
