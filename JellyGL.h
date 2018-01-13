@@ -16,10 +16,7 @@
 #include <map>
 
 
-//template <class T=float, class TI=int64_t, int Q=16, bool perspective_correction=true>
-template <class T=float, class TI=int64_t, int Q=20, bool perspective_correction=true>
-//template <class T=double, class TI=double, int Q=1, bool perspective_correction=true>
-//template <class T=double, class TI=double, int Q=1, bool perspective_correction=false>
+template <class T=float, class TI=int32_t, int QE=4, int QP=20, bool perspective_correction=true>
 class JellyGL
 {
 	// -----------------------------------------
@@ -75,7 +72,7 @@ protected:
 		{
 			return dx*(TI)x + dy*(TI)y + c;
 		}
-		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << Q)); }
+		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << QP)); }
 	};
 
 
@@ -275,11 +272,15 @@ protected:
 	// エッジ判定パラメータ算出
 	RasterizeParam	EdgeToRasterizeParam(Vec4 v0, Vec4 v1)
 	{
+		TI x0 = round(v0[0] * (1 << QE));
+		TI y0 = round(v0[1] * (1 << QE));
+		TI x1 = round(v1[0] * (1 << QE));
+		TI y1 = round(v1[1] * (1 << QE));
+
 		RasterizeParam	rp;
-		
-		rp.dx = (TI)(v1[1] - v0[1]);
-		rp.dy = (TI)(v0[0] - v1[0]);
-		rp.c  = (TI)-((v0[1] * rp.dy) + (v0[0] * rp.dx));
+		rp.dx = y1 - y0;
+		rp.dy = x0 - x1;
+		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
 
 //		if ( (rp.dy > 0 || (rp.dy == 0 && rp.dx > 0)) ) {
 //			rp.c++;
@@ -299,9 +300,9 @@ protected:
 		T		c  = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
 
 		RasterizeParam	rp;
-		rp.dx = (TI)(dx * (1 << Q));
-		rp.dy = (TI)(dy * (1 << Q));
-		rp.c  = (TI)(c  * (1 << Q));
+		rp.dx = (TI)(dx * (1 << QP));
+		rp.dy = (TI)(dy * (1 << QP));
+		rp.c  = (TI)(c  * (1 << QP));
 
 		return rp;
 	}

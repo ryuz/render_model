@@ -34,8 +34,6 @@ std::array<float, 2> table_tex_cord[4] = {
 cv::Mat img;
 cv::Mat imgTex;
 
-float angle = 11;
-
 
 void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 {
@@ -46,10 +44,6 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 		v *= (imgTex.rows-1);
 		
 		img.at<cv::Vec3b>(y, x) = imgTex.at<cv::Vec3b>(v, u);
-
-		if ( y > 400 ) {
-			printf("%f\n", angle);
-		}
 	}
 }
 
@@ -57,24 +51,6 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 
 void rasterizer_test(void)
 {
-	// debug
-	cv::Point pt1(round(410.943695), round(185.202301));
-	cv::Point pt3(round(421.254669), round(352.120544));
-	cv::Point pt7(round(418.279968), round(309.930420));
-	cv::Point pt5(round(404.582916), round(87.3642426));
-	cv::Mat imgDbg = cv::Mat::zeros(480, 640, CV_8UC3);
-	cv::line(imgDbg, pt1, pt3, cv::Scalar(127, 127, 255));
-	cv::line(imgDbg, pt3, pt7, cv::Scalar(127, 255, 127));
-	cv::line(imgDbg, pt5, pt7, cv::Scalar(255, 127, 255));
-	cv::line(imgDbg, pt1, pt5, cv::Scalar(255, 255, 127));
-	cv::circle(imgDbg, pt1, 1, cv::Scalar(0, 255, 0));
-	cv::circle(imgDbg, pt3, 1, cv::Scalar(0, 255, 0));
-	cv::circle(imgDbg, pt7, 1, cv::Scalar(0, 255, 0));
-	cv::circle(imgDbg, pt5, 1, cv::Scalar(0, 255, 0));
-	cv::imshow("imgDbg", imgDbg);
-//	cv::waitKey();
-//	return;
-
 //	imgTex = cv::imread("DSC_0030.jpg");
 	imgTex = cv::imread("Penguins.jpg");
 	img = cv::Mat::zeros(480, 640, CV_8UC3);
@@ -134,6 +110,7 @@ void rasterizer_test(void)
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
+	float angle = 0;
 	do {
 		JGL::Mat4	matRotate		= JGL::RotateMat4(angle, {0, 1, 0});
 		JGL::Mat4	matLookAt       = JGL::LookAtMat4({2, 2, +5}, {0, 0, 0}, {0, 1, 0});
@@ -154,7 +131,7 @@ void rasterizer_test(void)
 		angle += 1;
 
 		cv::imshow("img", img);
-	} while ( cv::waitKey() != 0x1b );
+	} while ( cv::waitKey(10) != 0x1b );
 }
 
 
