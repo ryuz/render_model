@@ -27,15 +27,22 @@ public:
 	typedef	std::array<T, 4>					Vec4;
 	typedef	std::array<T, 3>					Vec3;
 	typedef	std::array<T, 2>					Vec2;
+
 	struct FacePoint {
 		size_t	vertex;			// 頂点インデックス		
 		size_t	tex_cord;		// テクスチャ座標インデックス
 		FacePoint() {}
 		FacePoint(size_t v, size_t t) { vertex = v; tex_cord = t; }
 	};
-	typedef	std::vector<FacePoint>				Face;
+
+	struct Face {
+		int						matrial;
+		std::vector<FacePoint>	points;
+	};
+
 
 	struct PixelParam {
+		int		matrial;
 		T		u;
 		T		v;
 		T		t;
@@ -49,29 +56,12 @@ protected:
 	};
 
 	struct Polygon {
+		int							matrial;
 		std::vector<PolygonRegion>	region;			// 描画範囲
 		size_t						vertex[3];		// 頂点インデックス		
 		size_t						tex_cord[3];	// テクスチャ座標インデックス
 	};
 
-	bool CheckRegion(const std::vector<PolygonRegion>& region, const std::vector<bool>& edge_flags) {
-		bool	and_flag = true;
-		bool	or_flag  = false;
-		for ( auto r : region ) {
-			bool v = edge_flags[r.edge] ^ r.inverse;
-			and_flag &= v;
-			or_flag  |= v;
-		}
-		return (m_culling_cw && and_flag) || (m_culling_ccw && !or_flag);
-		
-//		for ( auto r : region ) {
-//			if ( !(edge_flags[r.edge] ^ r.inverse) ) {
-//				return false;
-//			}
-//		}
-//		return true;
-	}
-	
 	struct RasterizeParam {
 		TI		dx;
 		TI		dy;
@@ -90,6 +80,7 @@ protected:
 	// -----------------------------------------
 protected:
 	std::vector<Vec3>			m_vertex;			// 頂点リスト
+	std::vector<int>			m_vertex_model;		// 頂点の属するモデル番号
 	std::vector<Vec2>			m_tex_cord;			// テクスチャ座標リスト
 	std::vector<Face>			m_face;				// 描画面
 	std::vector<Polygon>		m_polygon;			// ポリゴンデータ
@@ -97,6 +88,10 @@ protected:
 	Mat4						m_matrix;			// 描画用マトリックス
 	std::vector <Vec4>			m_draw_vertex;		// 頂点リスト
 	
+	std::vector <Mat4>			m_model_matrix;
+	Mat4						m_view_matrix;
+	Mat4						m_viewport_matrix;
+
 	std::vector<Edge>			m_edge;				// 辺
 	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
 
@@ -116,6 +111,9 @@ public:
 	JellyGL()
 	{
 		m_matrix = IdentityMat4();
+
+		m_view_matrix     = IdentityMat4();
+		m_viewport_matrix = IdentityMat4();
 	}
 
 	// デストラクタ
@@ -127,8 +125,22 @@ public:
 	void SetVertexBuffer(const std::vector<Vec3>& vertex)
 	{
 		m_vertex = vertex;
+		m_vertex_model.resize(m_vertex.size(), 0);
+		m_model_matrix.clear();
+		m_model_matrix.push_back(IdentityMat4());
 	}
 
+	// モデル設定
+	void SetModel(int model, int begin, int end)
+	{
+		while ( model >= m_model_matrix.size() ) {
+			m_model_matrix.push_back(IdentityMat4());
+		}
+		for ( int i = begin; i < end; i++ ) {
+			m_vertex_model[i] = model;
+		}
+	}
+	
 	// テクスチャ座標バッファ設定
 	void SetTexCordBuffer(const std::vector<Vec2>& tex_cord)
 	{
@@ -141,6 +153,27 @@ public:
 		m_face = face;
 	}
 	
+	// Viewport設定
+	void SetViewport(int x, int y, int width, int height)
+	{
+		m_viewport_matrix = ViewportMat4(x,y ,width, height); 
+	}
+
+	// Viewマトリックス設定
+	void SetViewMatrix(Mat4 mat)
+	{
+		m_view_matrix = mat;
+	}
+
+	// Modelマトリックス設定
+	void SetModelMatrix(int model, Mat4 mat)
+	{
+		while ( model >= m_model_matrix.size() ) {
+			m_model_matrix.push_back(IdentityMat4());
+		}
+		m_model_matrix[model] = mat;
+	}
+
 	void SetMatrix(const Mat4 mat)
 	{
 		m_matrix = mat;
@@ -153,19 +186,19 @@ public:
 			Polygon	polygon;
 
 			// 描画範囲設定
-			for ( size_t i = 0; i < f.size(); ++i ) {
-				size_t j = (i + 1) % f.size();
+			for ( size_t i = 0; i < f.points.size(); ++i ) {
+				size_t j = (i + 1) % f.points.size();
 
 				PolygonRegion	region;
 				Edge			edge;
-				if (  f[i].vertex < f[j].vertex ) {
-					edge[0] = f[i].vertex;
-					edge[1] = f[j].vertex;
+				if (  f.points[i].vertex < f.points[j].vertex ) {
+					edge[0] = f.points[i].vertex;
+					edge[1] = f.points[j].vertex;
 					region.inverse = false;
 				}
 				else {
-					edge[0] = f[j].vertex;
-					edge[1] = f[i].vertex;
+					edge[0] = f.points[j].vertex;
+					edge[1] = f.points[i].vertex;
 					region.inverse = true;
 				}
 
@@ -185,23 +218,31 @@ public:
 				polygon.region.push_back(region);
 			}
 
-			FacePoint	fp[3] = {f[0], f[1], f[f.size() - 1]};
+			FacePoint	fp[3] = {f.points[0], f.points[1], f.points[2]};
 			for ( int i = 0; i < 3; ++i ) {
 				polygon.vertex[i]   = fp[i].vertex;
 				polygon.tex_cord[i] = fp[i].tex_cord;
 			}
+			polygon.matrial = f.matrial;
 
 			m_polygon.push_back(polygon);
 		}
 	}
 	
 
+	// 描画実施
 	void Draw(int width, int height, void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
 	{
+		// マトリックス作成
+		std::vector<Mat4> matrix;
+		for ( auto& mat : m_model_matrix ) {
+			matrix.push_back(MulMat(m_viewport_matrix, MulMat(m_view_matrix, mat)));
+		}
+
 		// 頂点座標計算
 		m_draw_vertex.clear();
-		for ( const auto& v : m_vertex ) {
-			m_draw_vertex.push_back(MulPerspectiveVec4(m_matrix, v));
+		for ( size_t i = 0; i < m_vertex.size(); ++i ) {
+			m_draw_vertex.push_back(MulPerspectiveVec4(matrix[m_vertex_model[i]] , m_vertex[i]));
 		}
 
 		// ラスタライザパラメータ生成
@@ -266,12 +307,13 @@ public:
 							v = m_rasterizeParam[i][2].CalcFloat(x, y);
 						}
 
-				//		if ( !valid || pp.t < w ) {
+						if ( !valid || pp.t > w ) {
 							valid = true;
+							pp.matrial = m_polygon[i].matrial;
 							pp.t = w;
 							pp.u = u;
 							pp.v = v;
-				//		}
+						}
 					}
 				}
 				proc(x, y, valid, pp, user);
@@ -281,6 +323,18 @@ public:
 
 
 protected:
+	// 領域判定
+	bool CheckRegion(const std::vector<PolygonRegion>& region, const std::vector<bool>& edge_flags) {
+		bool	and_flag = true;
+		bool	or_flag  = false;
+		for ( auto r : region ) {
+			bool v = edge_flags[r.edge] ^ r.inverse;
+			and_flag &= v;
+			or_flag  |= v;
+		}
+		return (m_culling_cw && and_flag) || (m_culling_ccw && !or_flag);
+	}
+	
 	// エッジ判定パラメータ算出
 	RasterizeParam	EdgeToRasterizeParam(Vec4 v0, Vec4 v1)
 	{
@@ -290,15 +344,6 @@ protected:
 		TI y1 = round(v1[1] * (1 << QE));
 
 		RasterizeParam	rp;
-		/*
-		rp.dx = y1 - y0;
-		rp.dy = x0 - x1;
-		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
-		rp.dx = -rp.dx;
-		rp.dy = -rp.dy;
-		rp.c  = -rp.c ;
-		*/
-
 		rp.dx = y0 - y1;
 		rp.dy = x1 - x0;
 		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
@@ -310,6 +355,7 @@ protected:
 		return rp;
 	}
 
+	// パラメータ計算
 	RasterizeParam	ParamToRasterizeParam(Vec3 vertex[3])
 	{
 		Vec3	vector0 = SubVec3(vertex[1], vertex[0]);
@@ -354,6 +400,17 @@ public:
 				mat[i][j] = (T)0;
 			}
 		}
+		return mat;
+	}
+
+	// ビューポート設定
+	static	Mat4 ViewportMat4(int x, int y, int width, int height)
+	{
+		Mat4 mat = IdentityMat4();
+		mat[0][0] = (T)width / (T)2;
+		mat[0][3] = (T)x + (width / (T)2);
+		mat[1][1] = (T)height / (T)2;
+		mat[1][3] = (T)y + (height / (T)2);
 		return mat;
 	}
 
