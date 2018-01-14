@@ -74,6 +74,34 @@ protected:
 		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << QP)); }
 	};
 
+	// 計算ユニット(エッジ判定とパラメータ補完で共通化)
+	class RasterizeUnit
+	{
+	public:
+		RasterizeUnit(RasterizeParam rp, int width)
+		{
+			m_value    = rp.c;
+			m_dx       = rp.dx;
+			m_y_stride = rp.dy - (rp.dx * (TI)(width - 1));
+		}
+		bool GetEdgeValue(void)
+		{
+			return (m_value >= 0);
+		}
+		T GetParamValue(void)
+		{
+			return (T)m_value / (T)(1 << QP);
+		}
+		void CalcNext(bool line_end)
+		{
+			m_value += line_end ? m_y_stride : m_dx;
+		}
+	protected:
+		TI		m_value;
+		TI		m_dx;
+		TI		m_y_stride;
+	};
+
 
 	// -----------------------------------------
 	//  メンバ変数
@@ -98,7 +126,7 @@ protected:
 	bool						m_culling_ccw = false;
 
 	std::vector<RasterizeParam>					m_rasterizeEdge;	// 辺
-	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;		// パラメータ
+	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;	// パラメータ
 
 
 
@@ -274,13 +302,31 @@ public:
 			}
 			m_rasterizeParam.push_back(rp);
 		}
-		
+
+		// 計算用ユニット設定
+		std::vector<RasterizeUnit> rasterizerEdge;
+		for ( auto& rp : m_rasterizeEdge ) {
+			rasterizerEdge.push_back(RasterizeUnit(rp, width));
+		}
+		std::vector< std::vector<RasterizeUnit> > rasterizerParam;
+		for ( auto& rps : m_rasterizeParam ) {
+			std::vector<RasterizeUnit>	vec;
+			for ( auto& rp : rps ) {
+				vec.push_back(RasterizeUnit(rp, width));
+			}
+			rasterizerParam.push_back(vec);
+		}
+
+		// 描画		
 		std::vector<bool>	edge_flags(m_rasterizeEdge.size());
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
-				for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
-					TI val = m_rasterizeEdge[i].CalcInt(x, y);
-					edge_flags[i] = (val >= 0);
+		//		for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
+		//			TI val = m_rasterizeEdge[i].CalcInt(x, y);
+		//			edge_flags[i] = (val >= 0);
+		//		}
+				for ( size_t i = 0; i < rasterizerEdge.size(); ++i ) {
+					edge_flags[i] = rasterizerEdge[i].GetEdgeValue();
 				}
 
 				PixelParam	pp = {};
@@ -289,14 +335,20 @@ public:
 					if ( CheckRegion(m_polygon[i].region, edge_flags) ) {
 						T w, u, v;
 						if ( perspective_correction ) {
-							w = 1 / (T)m_rasterizeParam[i][0].CalcFloat(x, y);
-							u = m_rasterizeParam[i][1].CalcFloat(x, y) * w;
-							v = m_rasterizeParam[i][2].CalcFloat(x, y) * w;
+			//				w = 1 / (T)m_rasterizeParam[i][0].CalcFloat(x, y);
+			//				u = m_rasterizeParam[i][1].CalcFloat(x, y) * w;
+			//				v = m_rasterizeParam[i][2].CalcFloat(x, y) * w;
+							w = 1 / (T)rasterizerParam[i][0].GetParamValue();
+							u = rasterizerParam[i][1].GetParamValue() * w;
+							v = rasterizerParam[i][2].GetParamValue() * w;
 						}
 						else {
-							w = m_rasterizeParam[i][0].CalcFloat(x, y);
-							u = m_rasterizeParam[i][1].CalcFloat(x, y);
-							v = m_rasterizeParam[i][2].CalcFloat(x, y);
+			//				w = m_rasterizeParam[i][0].CalcFloat(x, y);
+			//				u = m_rasterizeParam[i][1].CalcFloat(x, y);
+			//				v = m_rasterizeParam[i][2].CalcFloat(x, y);
+							w = rasterizerParam[i][0].GetParamValue();
+							u = rasterizerParam[i][1].GetParamValue();
+							v = rasterizerParam[i][2].GetParamValue();
 						}
 
 						if ( !valid || pp.t > w ) {
@@ -309,6 +361,16 @@ public:
 					}
 				}
 				proc(x, y, valid, pp, user);
+
+				// パラメータインクリメント
+				for ( auto& ras : rasterizerEdge ) {
+					ras.CalcNext(x == (width-1));
+				}
+				for ( auto& vec : rasterizerParam ) {
+					for ( auto& ras : vec ) {
+						ras.CalcNext(x == (width-1));
+					}
+				}
 			}
 		}
 	}
