@@ -171,6 +171,8 @@ void rasterizer_test(void)
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
+	cv::VideoWriter writer("output.avi", CV_FOURCC_DEFAULT, 30, cv::Size(640, 480), true);
+
 	float angle0 = 0;
 	float angle1 = 0;
 	do {
@@ -185,8 +187,7 @@ void rasterizer_test(void)
 		jgl.SetModelMatrix(0, matRotate0);
 		
 		// model1
-		angle1 -= 2;
-		JGL::Mat4	matRotate1	 = JGL::RotateMat4(angle1, {0, 1, 0});
+		JGL::Mat4	matRotate1	 = JGL::RotateMat4(angle1, {0, 1, 0});	angle1 -= 2;
 		JGL::Mat4	matTranslate = JGL::TranslatedMat4({0, 0, 2});
 		jgl.SetModelMatrix(1, JGL::MulMat(matTranslate, matRotate1));
 		
@@ -200,6 +201,7 @@ void rasterizer_test(void)
 
 		// show
 		cv::imshow("img", img);
+		writer << img;
 	} while ( cv::waitKey(10) != 0x1b );
 }
 
