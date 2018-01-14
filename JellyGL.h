@@ -85,8 +85,7 @@ protected:
 	std::vector<Face>			m_face;				// 描画面
 	std::vector<Polygon>		m_polygon;			// ポリゴンデータ
 
-	Mat4						m_matrix;			// 描画用マトリックス
-	std::vector <Vec4>			m_draw_vertex;		// 頂点リスト
+	std::vector <Vec4>			m_draw_vertex;		// 描画用頂点リスト
 	
 	std::vector <Mat4>			m_model_matrix;
 	Mat4						m_view_matrix;
@@ -110,8 +109,6 @@ public:
 	// コンストラクタ
 	JellyGL()
 	{
-		m_matrix = IdentityMat4();
-
 		m_view_matrix     = IdentityMat4();
 		m_viewport_matrix = IdentityMat4();
 	}
@@ -133,7 +130,7 @@ public:
 	// モデル設定
 	void SetModel(int model, int begin, int end)
 	{
-		while ( model >= m_model_matrix.size() ) {
+		while ( model >= (int)m_model_matrix.size() ) {
 			m_model_matrix.push_back(IdentityMat4());
 		}
 		for ( int i = begin; i < end; i++ ) {
@@ -168,15 +165,10 @@ public:
 	// Modelマトリックス設定
 	void SetModelMatrix(int model, Mat4 mat)
 	{
-		while ( model >= m_model_matrix.size() ) {
+		while ( model >= (int)m_model_matrix.size() ) {
 			m_model_matrix.push_back(IdentityMat4());
 		}
 		m_model_matrix[model] = mat;
-	}
-
-	void SetMatrix(const Mat4 mat)
-	{
-		m_matrix = mat;
 	}
 
 	// 描画リスト生成
@@ -338,15 +330,17 @@ protected:
 	// エッジ判定パラメータ算出
 	RasterizeParam	EdgeToRasterizeParam(Vec4 v0, Vec4 v1)
 	{
-		TI x0 = round(v0[0] * (1 << QE));
-		TI y0 = round(v0[1] * (1 << QE));
-		TI x1 = round(v1[0] * (1 << QE));
-		TI y1 = round(v1[1] * (1 << QE));
-
+		TI ix0 = (TI)round(v0[0]);
+		TI iy0 = (TI)round(v0[1]);
+		TI x0 = (TI)round(v0[0] * (1 << QE));
+		TI y0 = (TI)round(v0[1] * (1 << QE));
+		TI x1 = (TI)round(v1[0] * (1 << QE));
+		TI y1 = (TI)round(v1[1] * (1 << QE));
+		
 		RasterizeParam	rp;
 		rp.dx = y0 - y1;
 		rp.dy = x1 - x0;
-		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
+		rp.c  = -((iy0 * rp.dy) + (ix0 * rp.dx));
 
 		if ( (rp.dy < 0 || (rp.dy == 0 && rp.dx < 0)) ) {
 			rp.c--;
@@ -375,34 +369,11 @@ protected:
 	}
 	
 
+
 	// -----------------------------------------
-	//  行列計算補助関数
+	//  CG用行列計算補助関数
 	// -----------------------------------------
 public:
-	// 単位行列生成
-	static	Mat4 IdentityMat4(void)
-	{
-		Mat4	mat;
-		for ( size_t i = 0; i < mat.size(); ++i ) {
-			for ( size_t j = 0; j < mat[i].size(); ++j ) {
-				mat[i][j] = (i == j) ? (T)1 : (T)0;
-			}
-		}
-		return mat;
-	}
-	
-	// 単位行列生成
-	static	Mat4 ZeroMat4(void)
-	{
-		Mat4	mat;
-		for ( size_t i = 0; i < mat.size(); ++i ) {
-			for ( size_t j = 0; j < mat[i].size(); ++j ) {
-				mat[i][j] = (T)0;
-			}
-		}
-		return mat;
-	}
-
 	// ビューポート設定
 	static	Mat4 ViewportMat4(int x, int y, int width, int height)
 	{
@@ -441,7 +412,7 @@ public:
 	// 回転
 	static	Mat4 RotateMat4(T angle,  Vec3 up)
 	{
-		angle *= 3.14159265358979 / 180.0;
+		angle *= (T)(3.14159265358979 / 180.0);
 		up = NormalizeVec3(up);
 
 		T s = sin(angle);
@@ -462,7 +433,7 @@ public:
 	// 視点設定
 	static	Mat4 PerspectiveMat4(T fovy, T aspect, T zNear, T zFar)
 	{
-		fovy *= 3.14159265358979 / 180.0;
+		fovy *= (T)(3.14159265358979 / 180.0);
 
 		T f = (T)(1.0/tan(fovy/2.0));
 		Mat4 mat = ZeroMat4();
@@ -473,6 +444,36 @@ public:
 		mat[3][2] = -1;
 		return mat;
 	}
+
+
+	// -----------------------------------------
+	//  行列計算補助関数
+	// -----------------------------------------
+public:
+	// 単位行列生成
+	static	Mat4 IdentityMat4(void)
+	{
+		Mat4	mat;
+		for ( size_t i = 0; i < mat.size(); ++i ) {
+			for ( size_t j = 0; j < mat[i].size(); ++j ) {
+				mat[i][j] = (i == j) ? (T)1 : (T)0;
+			}
+		}
+		return mat;
+	}
+	
+	// 単位行列生成
+	static	Mat4 ZeroMat4(void)
+	{
+		Mat4	mat;
+		for ( size_t i = 0; i < mat.size(); ++i ) {
+			for ( size_t j = 0; j < mat[i].size(); ++j ) {
+				mat[i][j] = (T)0;
+			}
+		}
+		return mat;
+	}
+
 
 	// 行列乗算
 	static	Mat4 MulMat(const Mat4 matSrc0, const Mat4 matSrc1)
@@ -488,7 +489,6 @@ public:
 		}
 		return matDst;
 	}
-
 
 	// 行列のベクタへの適用
 	static	Vec4 MulMat(const Mat4 matSrc, const Vec4 vecSrc)
@@ -569,6 +569,7 @@ public:
 		return vecCross;
 	}
 
+	// ノルム計算
 	static	T NormVec3(const Vec3 vec)
 	{
 		T norm = 0;
@@ -578,6 +579,7 @@ public:
 		return sqrt(norm);
 	}
 
+	// 単位ベクトル化
 	static	Vec3 NormalizeVec3(const Vec3 vec)
 	{
 		T norm = NormVec3(vec);

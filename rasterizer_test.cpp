@@ -8,10 +8,9 @@
 typedef	JellyGL<float>	JGL;
 
 
-
-
 #if 1
 
+// モデルの頂点リスト
 std::array<float, 3> table_vertex[8*2] = {
 	{-2, -2, -2},
 	{+2, -2, -2},
@@ -31,6 +30,7 @@ std::array<float, 3> table_vertex[8*2] = {
 	{+1, +1, +1},
 };
 
+// テクスチャ座標リスト
 std::array<float, 2> table_tex_cord[4] = {
 	{0, 0},
 	{1, 0},
@@ -39,13 +39,12 @@ std::array<float, 2> table_tex_cord[4] = {
 };
 
 
-
-
-
+// 描画
 cv::Mat img;
 cv::Mat imgTex[2];
 
 
+// 描画プロシージャ
 void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 {
 	cv::Mat& tex = imgTex[pp.matrial];
@@ -56,7 +55,7 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 		u *= (tex.cols-1);
 		v *= (tex.rows-1);
 		
-		img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>(v, u);
+		img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
 	}
 }
 
@@ -193,7 +192,7 @@ void rasterizer_test(void)
 		
 		// view
 		JGL::Mat4	matLookAt       = JGL::LookAtMat4({5, -8, 20}, {0, 0, 0}, {0, 1, 0});
-		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, 640.0f/480.0f, 0.1, 1000);
+		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, 640.0f/480.0f, 0.1f, 1000.0f);
 		jgl.SetViewMatrix(JGL::MulMat(matPerspectivet, matLookAt));
 
 		//draw
