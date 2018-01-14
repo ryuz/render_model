@@ -66,14 +66,8 @@ protected:
 		TI		dx;
 		TI		dy;
 		TI		c;
-
-		TI CalcInt(int x, int y) const
-		{
-			return dx*(TI)x + dy*(TI)y + c;
-		}
-		T  CalcFloat(int x, int y) const { return (T)CalcInt(x, y) / ((T)(1 << QP)); }
 	};
-
+	
 	// 計算ユニット(エッジ判定とパラメータ補完で共通化)
 	class RasterizeUnit
 	{
@@ -84,14 +78,18 @@ protected:
 			m_dx       = rp.dx;
 			m_y_stride = rp.dy - (rp.dx * (TI)(width - 1));
 		}
+		
 		bool GetEdgeValue(void)
 		{
 			return (m_value >= 0);
 		}
+		
 		T GetParamValue(void)
 		{
 			return (T)m_value / (T)(1 << QP);
 		}
+
+		// ステップ計算(ハードウェア化想定箇所)
 		void CalcNext(bool line_end)
 		{
 			m_value += line_end ? m_y_stride : m_dx;
@@ -270,7 +268,6 @@ public:
 		for ( auto edge : m_edge ) {
 			m_rasterizeEdge.push_back(EdgeToRasterizeParam(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
 		}
-		
 		m_rasterizeParam.clear();
 		for ( auto p : m_polygon ) {
 			Vec3 param[3];
@@ -321,31 +318,23 @@ public:
 		std::vector<bool>	edge_flags(m_rasterizeEdge.size());
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
-		//		for ( size_t i = 0; i < m_rasterizeEdge.size(); ++i ) {
-		//			TI val = m_rasterizeEdge[i].CalcInt(x, y);
-		//			edge_flags[i] = (val >= 0);
-		//		}
+				// エッジ判定
 				for ( size_t i = 0; i < rasterizerEdge.size(); ++i ) {
 					edge_flags[i] = rasterizerEdge[i].GetEdgeValue();
 				}
-
+				
+				// Z判定
 				PixelParam	pp = {};
 				bool		valid = false;
 				for ( size_t i = 0; i < m_polygon.size(); ++i ) {
 					if ( CheckRegion(m_polygon[i].region, edge_flags) ) {
 						T w, u, v;
 						if ( perspective_correction ) {
-			//				w = 1 / (T)m_rasterizeParam[i][0].CalcFloat(x, y);
-			//				u = m_rasterizeParam[i][1].CalcFloat(x, y) * w;
-			//				v = m_rasterizeParam[i][2].CalcFloat(x, y) * w;
 							w = 1 / (T)rasterizerParam[i][0].GetParamValue();
 							u = rasterizerParam[i][1].GetParamValue() * w;
 							v = rasterizerParam[i][2].GetParamValue() * w;
 						}
 						else {
-			//				w = m_rasterizeParam[i][0].CalcFloat(x, y);
-			//				u = m_rasterizeParam[i][1].CalcFloat(x, y);
-			//				v = m_rasterizeParam[i][2].CalcFloat(x, y);
 							w = rasterizerParam[i][0].GetParamValue();
 							u = rasterizerParam[i][1].GetParamValue();
 							v = rasterizerParam[i][2].GetParamValue();
@@ -360,6 +349,8 @@ public:
 						}
 					}
 				}
+
+				// 描画処理
 				proc(x, y, valid, pp, user);
 
 				// パラメータインクリメント
