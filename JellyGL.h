@@ -52,16 +52,25 @@ protected:
 		std::vector<PolygonRegion>	region;			// 描画範囲
 		size_t						vertex[3];		// 頂点インデックス		
 		size_t						tex_cord[3];	// テクスチャ座標インデックス
-
-		bool CheckRegion(const std::vector<bool>& edge_flags) {
-			for ( auto r : region ) {
-				if ( !(edge_flags[r.edge] ^ r.inverse ^ 1) ) {
-					return false;
-				}
-			}
-			return true;
-		}
 	};
+
+	bool CheckRegion(const std::vector<PolygonRegion>& region, const std::vector<bool>& edge_flags) {
+		bool	and_flag = true;
+		bool	or_flag  = false;
+		for ( auto r : region ) {
+			bool v = edge_flags[r.edge] ^ r.inverse;
+			and_flag &= v;
+			or_flag  |= v;
+		}
+		return (m_culling_cw && and_flag) || (m_culling_ccw && !or_flag);
+		
+//		for ( auto r : region ) {
+//			if ( !(edge_flags[r.edge] ^ r.inverse) ) {
+//				return false;
+//			}
+//		}
+//		return true;
+	}
 	
 	struct RasterizeParam {
 		TI		dx;
@@ -90,6 +99,9 @@ protected:
 	
 	std::vector<Edge>			m_edge;				// 辺
 	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
+
+	bool						m_culling_cw  = true;
+	bool						m_culling_ccw = false;
 
 	std::vector<RasterizeParam>					m_rasterizeEdge;	// 辺
 	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;		// パラメータ
@@ -241,7 +253,7 @@ public:
 				PixelParam	pp = {};
 				bool		valid = false;
 				for ( size_t i = 0; i < m_polygon.size(); ++i ) {
-					if ( m_polygon[i].CheckRegion(edge_flags) ) {
+					if ( CheckRegion(m_polygon[i].region, edge_flags) ) {
 						T w, u, v;
 						if ( perspective_correction ) {
 							w = 1 / (T)m_rasterizeParam[i][0].CalcFloat(x, y);
@@ -278,13 +290,22 @@ protected:
 		TI y1 = round(v1[1] * (1 << QE));
 
 		RasterizeParam	rp;
+		/*
 		rp.dx = y1 - y0;
 		rp.dy = x0 - x1;
 		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
+		rp.dx = -rp.dx;
+		rp.dy = -rp.dy;
+		rp.c  = -rp.c ;
+		*/
 
-//		if ( (rp.dy > 0 || (rp.dy == 0 && rp.dx > 0)) ) {
-//			rp.c++;
-//		}
+		rp.dx = y0 - y1;
+		rp.dy = x1 - x0;
+		rp.c  = -((v0[1] * rp.dy) + (v0[0] * rp.dx));
+
+		if ( (rp.dy < 0 || (rp.dy == 0 && rp.dx < 0)) ) {
+			rp.c--;
+		}
 
 		return rp;
 	}
