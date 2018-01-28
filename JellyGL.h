@@ -31,8 +31,11 @@ public:
 	struct FacePoint {
 		size_t	vertex;			// 頂点インデックス		
 		size_t	tex_cord;		// テクスチャ座標インデックス
+		Vec3	color;			// 色
 		FacePoint() {}
-		FacePoint(size_t v, size_t t) { vertex = v; tex_cord = t; }
+		FacePoint(size_t v, size_t t)         { vertex = v; tex_cord = t; }
+		FacePoint(size_t v, size_t t, Vec3 c) { vertex = v; tex_cord = t; color = c; }
+		FacePoint(size_t v, Vec3 c)           { vertex = v; color = c; }
 	};
 
 	struct Face {
@@ -43,9 +46,8 @@ public:
 
 	struct PixelParam {
 		int		matrial;
-		T		u;
-		T		v;
-		T		t;
+		Vec3	tex_cord;
+		Vec3	color;
 	};
 
 protected:
@@ -60,12 +62,20 @@ protected:
 		std::vector<PolygonRegion>	region;			// 描画範囲
 		size_t						vertex[3];		// 頂点インデックス		
 		size_t						tex_cord[3];	// テクスチャ座標インデックス
+		Vec3						color[3];		// 色		
 	};
 
 	struct RasterizeParam {
 		TI		dx;
 		TI		dy;
 		TI		c;
+
+		void PrintHwParam(int width) {
+			printf("%08x\n%08x\n%08x\n",
+						(int)dx,
+						(int)(dy - (dx * (TI)(width - 1))),
+						(int)c);
+		}
 	};
 	
 	// 計算ユニット(エッジ判定とパラメータ補完で共通化)
@@ -240,6 +250,7 @@ public:
 			for ( int i = 0; i < 3; ++i ) {
 				polygon.vertex[i]   = fp[i].vertex;
 				polygon.tex_cord[i] = fp[i].tex_cord;
+				polygon.color[i]    = fp[i].color;
 			}
 			polygon.matrial = f.matrial;
 
@@ -249,7 +260,7 @@ public:
 	
 
 	// 描画実施
-	void Draw(int width, int height, void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
+	void DrawSetup(void)
 	{
 		// マトリックス作成
 		std::vector<Mat4> matrix;
@@ -270,7 +281,7 @@ public:
 		}
 		m_rasterizeParam.clear();
 		for ( auto p : m_polygon ) {
-			Vec3 param[3];
+			Vec3 param[3+3];
 			for ( int i = 0; i < 3; ++i ) {
 				T u = m_tex_cord[p.tex_cord[i]][0];
 				T v = m_tex_cord[p.tex_cord[i]][1];
@@ -279,16 +290,24 @@ public:
 					param[0][i] = 1 / w;
 					param[1][i] = u / w;
 					param[2][i] = v / w;
+
+					param[3][i] = p.color[i][0];
+					param[4][i] = p.color[i][1];
+					param[5][i] = p.color[i][2];
 				}
 				else {
 					param[0][i] = w;
 					param[1][i] = u;
 					param[2][i] = v;
+
+					param[3][i] = p.color[i][0];
+					param[4][i] = p.color[i][1];
+					param[5][i] = p.color[i][2];
 				}
 			}
 
 			std::vector<RasterizeParam>	rp;
-			for ( int i = 0; i < 3; ++i ) {
+			for ( int i = 0; i < 3+3; ++i ) {
 				Vec3 vertex[3];
 				for ( int j = 0; j < 3; ++j ) {
 					vertex[j][0] =  m_draw_vertex[p.vertex[j]][0];	// x
@@ -299,7 +318,52 @@ public:
 			}
 			m_rasterizeParam.push_back(rp);
 		}
+	}
 
+	void PrintHwParam(int width)
+	{
+		printf("<edge>\n");
+		for ( auto& rp : m_rasterizeEdge ) {
+			rp.PrintHwParam(width);
+		}
+		printf("\n");
+
+		printf("<polygon uvt>\n");
+		for ( auto& rps : m_rasterizeParam ) {
+	//		for ( auto& rp : rps ) {
+	//			rp.PrintHwParam(width);
+	//		}
+			rps[0].PrintHwParam(width);
+			rps[1].PrintHwParam(width);
+			rps[2].PrintHwParam(width);
+			printf("\n");
+		}
+
+		printf("<polygon rgb>\n");
+		for ( auto& rps : m_rasterizeParam ) {
+			rps[3].PrintHwParam(width);
+			rps[4].PrintHwParam(width);
+			rps[5].PrintHwParam(width);
+			printf("\n");
+		}
+
+		printf("<region>\n");
+		for ( auto& pol : m_polygon ) {
+			unsigned long edge_flag = 0;
+			unsigned long inv_flag  = 0;
+			for ( auto& reg : pol.region ) {
+				edge_flag |= (1 << reg.edge);
+				if ( reg.inverse ) {
+					inv_flag |= (1 << reg.edge);
+				}
+			}
+			printf("%08x\n", edge_flag);
+			printf("%08x\n", inv_flag);
+		}
+	}
+
+	void Draw(int width, int height, void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
+	{
 		// 計算用ユニット設定
 		std::vector<RasterizeUnit> rasterizerEdge;
 		for ( auto& rp : m_rasterizeEdge ) {
@@ -339,13 +403,19 @@ public:
 							u = rasterizerParam[i][1].GetParamValue();
 							v = rasterizerParam[i][2].GetParamValue();
 						}
+						T	r = rasterizerParam[i][3].GetParamValue();
+						T	g = rasterizerParam[i][4].GetParamValue();
+						T	b = rasterizerParam[i][5].GetParamValue();
 
-						if ( !valid || pp.t > w ) {
+						if ( !valid || pp.tex_cord[0] > w ) {
 							valid = true;
 							pp.matrial = m_polygon[i].matrial;
-							pp.t = w;
-							pp.u = u;
-							pp.v = v;
+							pp.tex_cord[0] = u;
+							pp.tex_cord[1] = v;
+							pp.tex_cord[2] = w;
+							pp.color[0] = r;
+							pp.color[1] = g;
+							pp.color[2] = b;
 						}
 					}
 				}

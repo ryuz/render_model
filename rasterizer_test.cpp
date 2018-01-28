@@ -50,12 +50,16 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 	cv::Mat& tex = imgTex[pp.matrial];
 
 	if ( polygon ) {
-		float u = MAX(0.0f, MIN(1.0f, pp.u));
-		float v = MAX(0.0f, MIN(1.0f, pp.v));
+		float u = MAX(0.0f, MIN(1.0f, pp.tex_cord[0]));
+		float v = MAX(0.0f, MIN(1.0f, pp.tex_cord[1]));
 		u *= (tex.cols-1);
 		v *= (tex.rows-1);
+	//	img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
 		
-		img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
+		float r = MAX(0.0f, MIN(1.0f, pp.color[0])) * 255.0f;
+		float g = MAX(0.0f, MIN(1.0f, pp.color[1])) * 255.0f;
+		float b = MAX(0.0f, MIN(1.0f, pp.color[2])) * 255.0f;
+		img.at<cv::Vec3b>(y, x) = cv::Vec3b((uchar)round(b), (uchar)round(g), (uchar)round(r));
 	}
 }
 
@@ -81,48 +85,48 @@ void rasterizer_test(void)
 	// ÉLÉÖÅ[ÉuÇÃÇUñ Çê›íË
 	f.matrial = 0;
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(0, 0));
-	f.points.push_back(JGL::FacePoint(2, 1));
-	f.points.push_back(JGL::FacePoint(3, 2));
-	f.points.push_back(JGL::FacePoint(1, 3));
+	f.points.push_back(JGL::FacePoint(0, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(2, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(3, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(1, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(7, 0));
-	f.points.push_back(JGL::FacePoint(6, 1));
-	f.points.push_back(JGL::FacePoint(4, 2));
-	f.points.push_back(JGL::FacePoint(5, 3));
+	f.points.push_back(JGL::FacePoint(7, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(6, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(4, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(5, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(0, 0));
-	f.points.push_back(JGL::FacePoint(1, 1));
-	f.points.push_back(JGL::FacePoint(5, 2));
-	f.points.push_back(JGL::FacePoint(4, 3));
+	f.points.push_back(JGL::FacePoint(0, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(1, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(5, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(4, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(1, 0));
-	f.points.push_back(JGL::FacePoint(3, 1));
-	f.points.push_back(JGL::FacePoint(7, 2));
-	f.points.push_back(JGL::FacePoint(5, 3));
+	f.points.push_back(JGL::FacePoint(1, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(3, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(7, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(5, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(3, 0));
-	f.points.push_back(JGL::FacePoint(2, 1));
-	f.points.push_back(JGL::FacePoint(6, 2));
-	f.points.push_back(JGL::FacePoint(7, 3));
+	f.points.push_back(JGL::FacePoint(3, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(2, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(6, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(7, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(2, 0));
-	f.points.push_back(JGL::FacePoint(0, 1));
-	f.points.push_back(JGL::FacePoint(4, 2));
-	f.points.push_back(JGL::FacePoint(6, 3));
+	f.points.push_back(JGL::FacePoint(2, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(0, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(4, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(6, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
-
+#if 0
 	// ÇQå¬ñ⁄ÇÃÉLÉÖÅ[ÉuÇÃÇUñ Çê›íË
 	f.matrial = 1;
 	f.points.clear();
@@ -166,7 +170,8 @@ void rasterizer_test(void)
 	f.points.push_back(JGL::FacePoint(8+4, 2));
 	f.points.push_back(JGL::FacePoint(8+6, 3));
 	face_table.push_back(f);
-	
+#endif
+
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
@@ -196,12 +201,15 @@ void rasterizer_test(void)
 		jgl.SetViewMatrix(JGL::MulMat(matPerspectivet, matLookAt));
 
 		//draw
+		jgl.DrawSetup();
+		jgl.PrintHwParam(640);
+
 		jgl.Draw(640, 480, RenderProc);
 
 		// show
 		cv::imshow("img", img);
 		writer << img;
-	} while ( cv::waitKey(10) != 0x1b );
+	} while ( cv::waitKey(0) != 0x1b );
 }
 
 
