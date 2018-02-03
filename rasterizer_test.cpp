@@ -65,12 +65,39 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 
 
 
+// パラメータ出力
+void EdgeParamProc(size_t index, JGL::RasterizerParameter rp, void* user)
+{
+	printf("[edge %d]\n", index);
+	for ( auto& v : rp ) {
+		printf("%08x\n", v);
+	}
+}
+
+void ShadereParamProc(size_t index, const std::vector<JGL::RasterizerParameter>& rps, void* user)
+{
+	printf("[shader %d]\n", index);
+	printf("%08x\n", rps[0][0]);
+	printf("%08x\n", rps[0][1]);
+	printf("%08x\n", rps[0][2]);
+}
+
+void RegionParamProc(size_t index, const std::vector<JGL::PolygonRegion>& regions, void* user)
+{
+}
+
+
+
+
 void rasterizer_test(void)
 {
+	int		width  = 640;
+	int		height = 480;
+
 //	imgTex = cv::imread("DSC_0030.jpg");
 	imgTex[0] = cv::imread("Penguins.jpg");
 	imgTex[1] = cv::imread("Chrysanthemum.jpg");
-	img = cv::Mat::zeros(480, 640, CV_8UC3);
+	img = cv::Mat::zeros(height, width, CV_8UC3);
 
 	JGL	jgl;
 	jgl.SetVertexBuffer(std::vector<JGL::Vec3>(table_vertex, std::end(table_vertex)));
@@ -197,14 +224,16 @@ void rasterizer_test(void)
 		
 		// view
 		JGL::Mat4	matLookAt       = JGL::LookAtMat4({5, -8, 20}, {0, 0, 0}, {0, 1, 0});
-		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, 640.0f/480.0f, 0.1f, 1000.0f);
+		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, (float)width/(float)height, 0.1f, 1000.0f);
 		jgl.SetViewMatrix(JGL::MulMat(matPerspectivet, matLookAt));
 
 		//draw
 		jgl.DrawSetup();
-		jgl.PrintHwParam(640);
+		jgl.PrintHwParam(width);
+//		jgl.CalcRasterizerParameter(width, EdgeParamProc, ShadereParamProc, RegionParamProc);
 
-		jgl.Draw(640, 480, RenderProc);
+		jgl.Draw(width, height, RenderProc);
+		
 
 		// show
 		cv::imshow("img", img);

@@ -27,6 +27,7 @@ public:
 	typedef	std::array<T, 4>					Vec4;
 	typedef	std::array<T, 3>					Vec3;
 	typedef	std::array<T, 2>					Vec2;
+	typedef	std::array<TI, 3>					RasterizerParameter;
 
 	struct FacePoint {
 		size_t	vertex;			// 頂点インデックス		
@@ -43,6 +44,10 @@ public:
 		std::vector<FacePoint>	points;
 	};
 
+	struct PolygonRegion {
+		size_t	edge;
+		bool	inverse;
+	};
 
 	struct PixelParam {
 		int		matrial;
@@ -52,10 +57,6 @@ public:
 
 protected:
 	typedef	std::array<size_t, 2>				Edge;
-	struct PolygonRegion {
-		size_t	edge;
-		bool	inverse;
-	};
 
 	struct Polygon {
 		int							matrial;
@@ -65,10 +66,15 @@ protected:
 		Vec3						color[3];		// 色		
 	};
 
-	struct RasterizeParam {
+	struct RasterizeCoeff {
 		TI		dx;
 		TI		dy;
 		TI		c;
+
+		RasterizerParameter	GetRasterizerParameter(int width)
+		{
+			return {dx, dy - (dx * (TI)(width - 1)), c};
+		}
 
 		void PrintHwParam(int width) {
 			printf("%08x\n%08x\n%08x\n",
@@ -79,14 +85,21 @@ protected:
 	};
 	
 	// 計算ユニット(エッジ判定とパラメータ補完で共通化)
-	class RasterizeUnit
+	class RasterizerUnit
 	{
 	public:
-		RasterizeUnit(RasterizeParam rp, int width)
+//		RasterizeUnit(RasterizeCoeff rc, int width)
+//		{
+//			m_value    = rc.c;
+//			m_dx       = rc.dx;
+//			m_y_stride = rc.dy - (rc.dx * (TI)(width - 1));
+//		}
+
+		RasterizerUnit(RasterizerParameter rp)
 		{
-			m_value    = rp.c;
-			m_dx       = rp.dx;
-			m_y_stride = rp.dy - (rp.dx * (TI)(width - 1));
+			m_dx       = rp[0];
+			m_y_stride = rp[1];
+			m_value    = rp[2];
 		}
 		
 		bool GetEdgeValue(void)
@@ -133,8 +146,8 @@ protected:
 	bool						m_culling_cw  = true;
 	bool						m_culling_ccw = false;
 
-	std::vector<RasterizeParam>					m_rasterizeEdge;	// 辺
-	std::vector< std::vector<RasterizeParam> >	m_rasterizeParam;	// パラメータ
+	std::vector<RasterizeCoeff>					m_coeffsEdge;	// エッジ判定パラメータ係数
+	std::vector< std::vector<RasterizeCoeff> >	m_coeffsShader;	//  シェーダーパラメータ係数
 
 
 
@@ -275,11 +288,11 @@ public:
 		}
 
 		// ラスタライザパラメータ生成
-		m_rasterizeEdge.clear();
+		m_coeffsEdge.clear();
 		for ( auto edge : m_edge ) {
-			m_rasterizeEdge.push_back(EdgeToRasterizeParam(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
+			m_coeffsEdge.push_back(EdgeToRasterizeCoeff(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
 		}
-		m_rasterizeParam.clear();
+		m_coeffsShader.clear();
 		for ( auto p : m_polygon ) {
 			Vec3 param[3+3];
 			for ( int i = 0; i < 3; ++i ) {
@@ -306,7 +319,7 @@ public:
 				}
 			}
 
-			std::vector<RasterizeParam>	rp;
+			std::vector<RasterizeCoeff>	rcs;
 			for ( int i = 0; i < 3+3; ++i ) {
 				Vec3 vertex[3];
 				for ( int j = 0; j < 3; ++j ) {
@@ -314,25 +327,52 @@ public:
 					vertex[j][1] =  m_draw_vertex[p.vertex[j]][1];	// y
 					vertex[j][2] =  param[i][j];					// param
 				}
-				rp.push_back(ParamToRasterizeParam(vertex));
+				rcs.push_back(ParamToRasterizeCoeff(vertex));
 			}
-			m_rasterizeParam.push_back(rp);
+			m_coeffsShader.push_back(rcs);
+		}
+	}
+	
+
+	// H/W設定用パラメータ算出
+	void CalcRasterizerParameter(
+					int width,
+					void (*procEdge)(size_t index, RasterizerParameter rp, void* user),
+					void (*procShader)(size_t index, const std::vector<RasterizerParameter>& rps, void* user),
+					void (*procRegion)(size_t index, const std::vector<PolygonRegion>& region, void* user),
+					void* user=0)
+	{
+		// edge
+		for ( size_t index = 0; index < m_coeffsEdge.size(); ++index ) {
+			procEdge(index, m_coeffsEdge[index].GetRasterizerParameter(width), user);
+		}
+
+		// shader param
+		for ( size_t index = 0; index < m_coeffsShader.size(); ++index ) {
+			std::vector<RasterizerParameter>	rps;
+			for ( auto& rc : m_coeffsShader[index] ) {
+				rps.push_back(rc.GetRasterizerParameter(width));
+			}
+			procShader(index, rps, user);
+		}
+
+		// region
+		for ( size_t index = 0; index < m_polygon.size(); ++index ) {
+			procRegion(index, m_polygon[index].region, user);
 		}
 	}
 
+	// パラメータ表示
 	void PrintHwParam(int width)
 	{
 		printf("<edge>\n");
-		for ( auto& rp : m_rasterizeEdge ) {
+		for ( auto& rp : m_coeffsEdge ) {
 			rp.PrintHwParam(width);
 		}
 		printf("\n");
 
 		printf("<polygon uvt>\n");
-		for ( auto& rps : m_rasterizeParam ) {
-	//		for ( auto& rp : rps ) {
-	//			rp.PrintHwParam(width);
-	//		}
+		for ( auto& rps : m_coeffsShader ) {
 			rps[0].PrintHwParam(width);
 			rps[1].PrintHwParam(width);
 			rps[2].PrintHwParam(width);
@@ -340,7 +380,7 @@ public:
 		}
 
 		printf("<polygon rgb>\n");
-		for ( auto& rps : m_rasterizeParam ) {
+		for ( auto& rps : m_coeffsShader ) {
 			rps[3].PrintHwParam(width);
 			rps[4].PrintHwParam(width);
 			rps[5].PrintHwParam(width);
@@ -365,21 +405,21 @@ public:
 	void Draw(int width, int height, void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
 	{
 		// 計算用ユニット設定
-		std::vector<RasterizeUnit> rasterizerEdge;
-		for ( auto& rp : m_rasterizeEdge ) {
-			rasterizerEdge.push_back(RasterizeUnit(rp, width));
+		std::vector<RasterizerUnit> rasterizerEdge;
+		for ( auto& rc : m_coeffsEdge ) {
+			rasterizerEdge.push_back(RasterizerUnit(rc.GetRasterizerParameter(width)));
 		}
-		std::vector< std::vector<RasterizeUnit> > rasterizerParam;
-		for ( auto& rps : m_rasterizeParam ) {
-			std::vector<RasterizeUnit>	vec;
-			for ( auto& rp : rps ) {
-				vec.push_back(RasterizeUnit(rp, width));
+		std::vector< std::vector<RasterizerUnit> > rasterizerParam;
+		for ( auto& rcs : m_coeffsShader ) {
+			std::vector<RasterizerUnit>	vec;
+			for ( auto& rc : rcs ) {
+				vec.push_back(RasterizerUnit(rc.GetRasterizerParameter(width)));
 			}
 			rasterizerParam.push_back(vec);
 		}
 
 		// 描画		
-		std::vector<bool>	edge_flags(m_rasterizeEdge.size());
+		std::vector<bool>	edge_flags(m_coeffsEdge.size());
 		for ( int y = 0; y < height; ++y ) {
 			for ( int x = 0; x < width; ++x ) {
 				// エッジ判定
@@ -450,8 +490,8 @@ protected:
 		return (m_culling_cw && and_flag) || (m_culling_ccw && !or_flag);
 	}
 	
-	// エッジ判定パラメータ算出
-	RasterizeParam	EdgeToRasterizeParam(Vec4 v0, Vec4 v1)
+	// エッジ判定係数算出
+	RasterizeCoeff	EdgeToRasterizeCoeff(Vec4 v0, Vec4 v1)
 	{
 		TI ix0 = (TI)round(v0[0]);
 		TI iy0 = (TI)round(v0[1]);
@@ -460,20 +500,20 @@ protected:
 		TI x1 = (TI)round(v1[0] * (1 << QE));
 		TI y1 = (TI)round(v1[1] * (1 << QE));
 		
-		RasterizeParam	rp;
-		rp.dx = y0 - y1;
-		rp.dy = x1 - x0;
-		rp.c  = -((iy0 * rp.dy) + (ix0 * rp.dx));
+		RasterizeCoeff	rc;
+		rc.dx = y0 - y1;
+		rc.dy = x1 - x0;
+		rc.c  = -((iy0 * rc.dy) + (ix0 * rc.dx));
 
-		if ( (rp.dy < 0 || (rp.dy == 0 && rp.dx < 0)) ) {
-			rp.c--;
+		if ( (rc.dy < 0 || (rc.dy == 0 && rc.dx < 0)) ) {
+			rc.c--;
 		}
 
-		return rp;
+		return rc;
 	}
 
-	// パラメータ計算
-	RasterizeParam	ParamToRasterizeParam(Vec3 vertex[3])
+	// ポリゴンパラメータ係数計算
+	RasterizeCoeff	ParamToRasterizeCoeff(Vec3 vertex[3])
 	{
 		Vec3	vector0 = SubVec3(vertex[1], vertex[0]);
 		Vec3	vector1 = SubVec3(vertex[2], vertex[0]);
@@ -483,12 +523,12 @@ protected:
 		T		dy = -cross[1] / cross[2];
 		T		c  = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
 
-		RasterizeParam	rp;
-		rp.dx = (TI)(dx * (1 << QP));
-		rp.dy = (TI)(dy * (1 << QP));
-		rp.c  = (TI)(c  * (1 << QP));
+		RasterizeCoeff	rc;
+		rc.dx = (TI)(dx * (1 << QP));
+		rc.dy = (TI)(dy * (1 << QP));
+		rc.c  = (TI)(c  * (1 << QP));
 
-		return rp;
+		return rc;
 	}
 	
 
