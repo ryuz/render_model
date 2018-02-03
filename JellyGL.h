@@ -16,7 +16,7 @@
 #include <map>
 
 
-template <class T=float, class TI=int32_t, int QE=4, int QP=20, bool perspective_correction=true>
+template <class T=float, class TI=int32_t, int QE=4, int QP=24, bool perspective_correction=true>
 class JellyGL
 {
 	// -----------------------------------------
@@ -144,7 +144,7 @@ protected:
 	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
 
 	bool						m_culling_cw  = true;
-	bool						m_culling_ccw = false;
+	bool						m_culling_ccw = true;
 
 	std::vector<RasterizeCoeff>					m_coeffsEdge;	// エッジ判定パラメータ係数
 	std::vector< std::vector<RasterizeCoeff> >	m_coeffsShader;	//  シェーダーパラメータ係数
@@ -335,18 +335,16 @@ public:
 	
 
 	// H/W設定用パラメータ算出
-	void CalcRasterizerParameter(
-					int width,
-					void (*procEdge)(size_t index, RasterizerParameter rp, void* user),
-					void (*procShader)(size_t index, const std::vector<RasterizerParameter>& rps, void* user),
-					void (*procRegion)(size_t index, const std::vector<PolygonRegion>& region, void* user),
-					void* user=0)
+	void CalcEdgeRasterizerParameter(int width, void (*procEdge)(size_t index, RasterizerParameter rp, void* user), void* user=0)				
 	{
 		// edge
 		for ( size_t index = 0; index < m_coeffsEdge.size(); ++index ) {
 			procEdge(index, m_coeffsEdge[index].GetRasterizerParameter(width), user);
 		}
+	}
 
+	void CalcShaderRasterizerParameter(int width, void (*procShader)(size_t index, const std::vector<RasterizerParameter>& rps, void* user), void* user=0)
+	{
 		// shader param
 		for ( size_t index = 0; index < m_coeffsShader.size(); ++index ) {
 			std::vector<RasterizerParameter>	rps;
@@ -355,12 +353,16 @@ public:
 			}
 			procShader(index, rps, user);
 		}
-
+	}
+	
+	void CalcRegionRasterizerParameter(int width, void (*procRegion)(size_t index, const std::vector<PolygonRegion>& region, void* user), void* user=0)
+	{
 		// region
 		for ( size_t index = 0; index < m_polygon.size(); ++index ) {
 			procRegion(index, m_polygon[index].region, user);
 		}
 	}
+	
 
 	// パラメータ表示
 	void PrintHwParam(int width)
@@ -447,7 +449,7 @@ public:
 						T	g = rasterizerParam[i][4].GetParamValue();
 						T	b = rasterizerParam[i][5].GetParamValue();
 
-						if ( !valid || pp.tex_cord[0] > w ) {
+						if ( !valid || pp.tex_cord[2] > w ) {
 							valid = true;
 							pp.matrial = m_polygon[i].matrial;
 							pp.tex_cord[0] = u;

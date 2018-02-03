@@ -54,36 +54,64 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 		float v = MAX(0.0f, MIN(1.0f, pp.tex_cord[1]));
 		u *= (tex.cols-1);
 		v *= (tex.rows-1);
-	//	img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
+		img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
 		
 		float r = MAX(0.0f, MIN(1.0f, pp.color[0])) * 255.0f;
 		float g = MAX(0.0f, MIN(1.0f, pp.color[1])) * 255.0f;
 		float b = MAX(0.0f, MIN(1.0f, pp.color[2])) * 255.0f;
-		img.at<cv::Vec3b>(y, x) = cv::Vec3b((uchar)round(b), (uchar)round(g), (uchar)round(r));
+	//	img.at<cv::Vec3b>(y, x) = cv::Vec3b((uchar)round(b), (uchar)round(g), (uchar)round(r));
 	}
 }
 
+
+unsigned int	bank_addr = 0x00;
+
+void PrintSimWbWrite(unsigned int addr, unsigned int data)
+{
+	printf("wb_write(32'h%08x, 32'h%08x, 4'b1111);\n", bank_addr + addr, data);
+}
+
+void PrintSimRasterizerParameter(unsigned int addr, JGL::RasterizerParameter rp)
+{
+	for ( auto v : rp ) {
+		PrintSimWbWrite(addr, v);
+		addr += 4;
+	}
+}
 
 
 // パラメータ出力
-void EdgeParamProc(size_t index, JGL::RasterizerParameter rp, void* user)
+void SimEdgeParamProc(size_t index, JGL::RasterizerParameter rp, void* user)
 {
-	printf("[edge %d]\n", index);
-	for ( auto& v : rp ) {
-		printf("%08x\n", v);
+	unsigned int	addr = 0x1000 + ((unsigned int)index * 3*4);
+	PrintSimRasterizerParameter(addr, rp);
+}
+
+void SimShadereParamProc(size_t index, const std::vector<JGL::RasterizerParameter>& rps, void* user)
+{
+	unsigned int	addr = 0x2000 + ((unsigned int)index * 3*4*4);
+	PrintSimRasterizerParameter(addr, rps[0]);	addr += 3*4;
+	PrintSimRasterizerParameter(addr, rps[3]);	addr += 3*4;
+	PrintSimRasterizerParameter(addr, rps[4]);	addr += 3*4;
+	PrintSimRasterizerParameter(addr, rps[5]);	addr += 3*4;
+}
+
+void SimRegionParamProc(size_t index, const std::vector<JGL::PolygonRegion>& regions, void* user)
+{
+	// bitマスク生成
+	unsigned long edge_flag = 0;
+	unsigned long pol_flag  = 0;
+	for ( auto& r : regions ) {
+		edge_flag |= (1 << r.edge);
+		if ( r.inverse ) {
+			pol_flag |= (1 << r.edge);
+		}
 	}
-}
 
-void ShadereParamProc(size_t index, const std::vector<JGL::RasterizerParameter>& rps, void* user)
-{
-	printf("[shader %d]\n", index);
-	printf("%08x\n", rps[0][0]);
-	printf("%08x\n", rps[0][1]);
-	printf("%08x\n", rps[0][2]);
-}
-
-void RegionParamProc(size_t index, const std::vector<JGL::PolygonRegion>& regions, void* user)
-{
+	// 出力
+	unsigned int	addr = 0x3000 + ((unsigned int)index * 2*4);
+	PrintSimWbWrite(addr, edge_flag);	addr += 4;
+	PrintSimWbWrite(addr, pol_flag);	addr += 4;
 }
 
 
@@ -153,49 +181,49 @@ void rasterizer_test(void)
 	f.points.push_back(JGL::FacePoint(6, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
-#if 0
+#if 1
 	// ２個目のキューブの６面を設定
 	f.matrial = 1;
 	f.points.clear();
-	f.points.push_back(JGL::FacePoint(8+0, 0));
-	f.points.push_back(JGL::FacePoint(8+2, 1));
-	f.points.push_back(JGL::FacePoint(8+3, 2));
-	f.points.push_back(JGL::FacePoint(8+1, 3));
+	f.points.push_back(JGL::FacePoint(8+0, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+2, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+3, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+1, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 							
 	f.points.clear();		
-	f.points.push_back(JGL::FacePoint(8+7, 0));
-	f.points.push_back(JGL::FacePoint(8+6, 1));
-	f.points.push_back(JGL::FacePoint(8+4, 2));
-	f.points.push_back(JGL::FacePoint(8+5, 3));
+	f.points.push_back(JGL::FacePoint(8+7, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+6, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+4, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+5, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 							
 	f.points.clear();		
-	f.points.push_back(JGL::FacePoint(8+0, 0));
-	f.points.push_back(JGL::FacePoint(8+1, 1));
-	f.points.push_back(JGL::FacePoint(8+5, 2));
-	f.points.push_back(JGL::FacePoint(8+4, 3));
+	f.points.push_back(JGL::FacePoint(8+0, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+1, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+5, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+4, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 							
 	f.points.clear();		
-	f.points.push_back(JGL::FacePoint(8+1, 0));
-	f.points.push_back(JGL::FacePoint(8+3, 1));
-	f.points.push_back(JGL::FacePoint(8+7, 2));
-	f.points.push_back(JGL::FacePoint(8+5, 3));
+	f.points.push_back(JGL::FacePoint(8+1, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+3, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+7, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+5, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 
 	f.points.clear();		
-	f.points.push_back(JGL::FacePoint(8+3, 0));
-	f.points.push_back(JGL::FacePoint(8+2, 1));
-	f.points.push_back(JGL::FacePoint(8+6, 2));
-	f.points.push_back(JGL::FacePoint(8+7, 3));
+	f.points.push_back(JGL::FacePoint(8+3, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+2, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+6, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+7, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 							
 	f.points.clear();		
-	f.points.push_back(JGL::FacePoint(8+2, 0));
-	f.points.push_back(JGL::FacePoint(8+0, 1));
-	f.points.push_back(JGL::FacePoint(8+4, 2));
-	f.points.push_back(JGL::FacePoint(8+6, 3));
+	f.points.push_back(JGL::FacePoint(8+2, 0, {0.5f, 0.0f, 0.0f}));
+	f.points.push_back(JGL::FacePoint(8+0, 1, {0.5f, 0.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+4, 2, {0.5f, 1.0f, 1.0f}));
+	f.points.push_back(JGL::FacePoint(8+6, 3, {0.5f, 1.0f, 0.0f}));
 	face_table.push_back(f);
 #endif
 
@@ -204,33 +232,39 @@ void rasterizer_test(void)
 
 	cv::VideoWriter writer("output.avi", CV_FOURCC_DEFAULT, 30, cv::Size(640, 480), true);
 
-	float angle0 = 0;
-	float angle1 = 0;
+	float angle0 = 40;
+	float angle1 = -80;
 	do {
 		// clear
-		img = cv::Mat::zeros(480, 640, CV_8UC3);
+		img = cv::Mat::zeros(height, width, CV_8UC3);
 
 		// viewport
-		jgl.SetViewport(0, 0, 640, 480);
+		jgl.SetViewport(0, 0, width, height);
 
 		// model0
 		JGL::Mat4	matRotate0 = JGL::RotateMat4(angle0, {0, 1, 0});	angle0 += 1;
-		jgl.SetModelMatrix(0, matRotate0);
+		JGL::Mat4	matTranslate0 = JGL::TranslatedMat4({0, 0, 0});
+		jgl.SetModelMatrix(0, JGL::MulMat(matTranslate0, matRotate0));
 		
 		// model1
 		JGL::Mat4	matRotate1	 = JGL::RotateMat4(angle1, {0, 1, 0});	angle1 -= 2;
-		JGL::Mat4	matTranslate = JGL::TranslatedMat4({0, 0, 2});
-		jgl.SetModelMatrix(1, JGL::MulMat(matTranslate, matRotate1));
+		JGL::Mat4	matTranslate1 = JGL::TranslatedMat4({0, 0, 2});
+		jgl.SetModelMatrix(1, JGL::MulMat(matTranslate1, matRotate1));
 		
 		// view
 		JGL::Mat4	matLookAt       = JGL::LookAtMat4({5, -8, 20}, {0, 0, 0}, {0, 1, 0});
 		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, (float)width/(float)height, 0.1f, 1000.0f);
 		jgl.SetViewMatrix(JGL::MulMat(matPerspectivet, matLookAt));
-
+		
 		//draw
 		jgl.DrawSetup();
-		jgl.PrintHwParam(width);
-//		jgl.CalcRasterizerParameter(width, EdgeParamProc, ShadereParamProc, RegionParamProc);
+	//	jgl.PrintHwParam(width);
+		
+		// シミュレーション用出力
+		printf("\n$display(\"[edge]\");\n");		jgl.CalcEdgeRasterizerParameter  (width, SimEdgeParamProc);
+		printf("\n$display(\"[shader]\");\n");	jgl.CalcShaderRasterizerParameter(width, SimShadereParamProc);
+		printf("\n$display(\"[region]\");\n");	jgl.CalcRegionRasterizerParameter(width, SimRegionParamProc);
+		printf("\n");	
 
 		jgl.Draw(width, height, RenderProc);
 		
