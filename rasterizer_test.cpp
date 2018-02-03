@@ -128,6 +128,12 @@ void rasterizer_test(void)
 	img = cv::Mat::zeros(height, width, CV_8UC3);
 
 	JGL	jgl;
+	jgl.SetEdgeParamFracWidth(4);
+	jgl.SetShaderParamFracWidth(24);
+
+	jgl.SetSize(width, height);
+	jgl.SetCulling(true, false);
+
 	jgl.SetVertexBuffer(std::vector<JGL::Vec3>(table_vertex, std::end(table_vertex)));
 	jgl.SetTexCordBuffer(std::vector<JGL::Vec2>(table_tex_cord, std::end(table_tex_cord)));
 
@@ -261,12 +267,12 @@ void rasterizer_test(void)
 	//	jgl.PrintHwParam(width);
 		
 		// シミュレーション用出力
-		printf("\n$display(\"[edge]\");\n");		jgl.CalcEdgeRasterizerParameter  (width, SimEdgeParamProc);
-		printf("\n$display(\"[shader]\");\n");	jgl.CalcShaderRasterizerParameter(width, SimShadereParamProc);
-		printf("\n$display(\"[region]\");\n");	jgl.CalcRegionRasterizerParameter(width, SimRegionParamProc);
+		printf("\n$display(\"[edge]\");\n");	jgl.CalcEdgeRasterizerParameter(SimEdgeParamProc);
+		printf("\n$display(\"[shader]\");\n");	jgl.CalcShaderRasterizerParameter(SimShadereParamProc);
+		printf("\n$display(\"[region]\");\n");	jgl.CalcRegionRasterizerParameter(SimRegionParamProc);
 		printf("\n");	
 
-		jgl.Draw(width, height, RenderProc);
+		jgl.Draw(RenderProc);
 		
 
 		// show

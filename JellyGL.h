@@ -16,19 +16,20 @@
 #include <map>
 
 
-template <class T=float, class TI=int32_t, int QE=4, int QP=24, bool perspective_correction=true>
+template <class T=float, class TI=int32_t, bool perspective_correction=true>
 class JellyGL
 {
 	// -----------------------------------------
 	//   型定義
 	// -----------------------------------------
 public:
-	typedef	std::array< std::array<T, 4>, 4>	Mat4;
-	typedef	std::array<T, 4>					Vec4;
-	typedef	std::array<T, 3>					Vec3;
-	typedef	std::array<T, 2>					Vec2;
-	typedef	std::array<TI, 3>					RasterizerParameter;
+	typedef	std::array< std::array<T, 4>, 4>	Mat4;					// 行列4x4
+	typedef	std::array<T, 4>					Vec4;					// ベクタx4
+	typedef	std::array<T, 3>					Vec3;					// ベクタx3
+	typedef	std::array<T, 2>					Vec2;					// ベクタx2
+	typedef	std::array<TI, 3>					RasterizerParameter;	// ラスタライザパラメータ
 
+	// 面定義字の頂点情報
 	struct FacePoint {
 		size_t	vertex;			// 頂点インデックス		
 		size_t	tex_cord;		// テクスチャ座標インデックス
@@ -38,17 +39,20 @@ public:
 		FacePoint(size_t v, size_t t, Vec3 c) { vertex = v; tex_cord = t; color = c; }
 		FacePoint(size_t v, Vec3 c)           { vertex = v; color = c; }
 	};
-
+	
+	// 面情報
 	struct Face {
 		int						matrial;
 		std::vector<FacePoint>	points;
 	};
 
+	// ポリゴン領域
 	struct PolygonRegion {
 		size_t	edge;
 		bool	inverse;
 	};
 
+	// ピクセル情報
 	struct PixelParam {
 		int		matrial;
 		Vec3	tex_cord;
@@ -56,8 +60,9 @@ public:
 	};
 
 protected:
-	typedef	std::array<size_t, 2>				Edge;
+	typedef	std::array<size_t, 2>	Edge;			// エッジ情報
 
+	// ポリゴン情報
 	struct Polygon {
 		int							matrial;
 		std::vector<PolygonRegion>	region;			// 描画範囲
@@ -66,21 +71,16 @@ protected:
 		Vec3						color[3];		// 色		
 	};
 
+	// ラスタライズ係数
 	struct RasterizeCoeff {
 		TI		dx;
 		TI		dy;
 		TI		c;
 
+		// ラスタライザパラメータに変換
 		RasterizerParameter	GetRasterizerParameter(int width)
 		{
 			return {dx, dy - (dx * (TI)(width - 1)), c};
-		}
-
-		void PrintHwParam(int width) {
-			printf("%08x\n%08x\n%08x\n",
-						(int)dx,
-						(int)(dy - (dx * (TI)(width - 1))),
-						(int)c);
 		}
 	};
 	
@@ -88,13 +88,6 @@ protected:
 	class RasterizerUnit
 	{
 	public:
-//		RasterizeUnit(RasterizeCoeff rc, int width)
-//		{
-//			m_value    = rc.c;
-//			m_dx       = rc.dx;
-//			m_y_stride = rc.dy - (rc.dx * (TI)(width - 1));
-//		}
-
 		RasterizerUnit(RasterizerParameter rp)
 		{
 			m_dx       = rp[0];
@@ -102,14 +95,14 @@ protected:
 			m_value    = rp[2];
 		}
 		
-		bool GetEdgeValue(void)
+		bool GetEdgeDiscriminantValue(void)
 		{
 			return (m_value >= 0);
 		}
 		
-		T GetParamValue(void)
+		T GetShaderParamValue(int param_q)
 		{
-			return (T)m_value / (T)(1 << QP);
+			return (T)m_value / (T)(1 << param_q);
 		}
 
 		// ステップ計算(ハードウェア化想定箇所)
@@ -128,6 +121,14 @@ protected:
 	//  メンバ変数
 	// -----------------------------------------
 protected:
+	int							m_width          = 640;
+	int							m_height         = 480;
+	bool						m_culling_cw     = true;
+	bool						m_culling_ccw    = true;
+	
+	int							m_edge_param_q   = 4;
+	int							m_shader_param_q = 24;
+
 	std::vector<Vec3>			m_vertex;			// 頂点リスト
 	std::vector<int>			m_vertex_model;		// 頂点の属するモデル番号
 	std::vector<Vec2>			m_tex_cord;			// テクスチャ座標リスト
@@ -136,18 +137,52 @@ protected:
 
 	std::vector <Vec4>			m_draw_vertex;		// 描画用頂点リスト
 	
-	std::vector <Mat4>			m_model_matrix;
-	Mat4						m_view_matrix;
-	Mat4						m_viewport_matrix;
+	std::vector <Mat4>			m_model_matrix;		// モデル行列
+	Mat4						m_view_matrix;		// ビュー行列
+	Mat4						m_viewport_matrix;	// viewport
 
 	std::vector<Edge>			m_edge;				// 辺
 	std::map< Edge, size_t>		m_edge_index;		// 辺のインデックス探索用
 
-	bool						m_culling_cw  = true;
-	bool						m_culling_ccw = true;
 
 	std::vector<RasterizeCoeff>					m_coeffsEdge;	// エッジ判定パラメータ係数
 	std::vector< std::vector<RasterizeCoeff> >	m_coeffsShader;	//  シェーダーパラメータ係数
+
+
+	// H/Wエンジン設定
+	uint32_t		m_hw_base_addr        = 0x40000000;
+	uint32_t		m_hw_shader_type      = 0;
+	uint32_t		m_hw_version          = 0;
+	uint32_t		m_hw_bank_step        = 0x00004000;
+	uint32_t		m_hw_params_step      = 0x00001000;
+	uint32_t		m_hw_bank_num         = 2;
+	uint32_t		m_hw_edge_num         = 12*2;
+	uint32_t		m_hw_polygon_num      = 6*2;
+	uint32_t		m_hw_shader_param_num = 4;
+	uint32_t		m_hw_shader_param_q   = 4;
+
+	bool			m_hw_shader_param_has_z        = true;
+	bool			m_hw_shader_param_has_tex_cord = false; 
+	bool			m_hw_shader_param_has_color    = true;
+
+	const unsigned long	REG_ADDR_CTL_ENABLE             = 0x00*4;
+	const unsigned long	REG_ADDR_CTL_BANK               = 0x01*4;
+	const unsigned long	REG_ADDR_PARAM_WIDTH            = 0x02*4;
+	const unsigned long	REG_ADDR_PARAM_HEIGHT           = 0x03*4;
+	const unsigned long	REG_ADDR_PARAM_CULLING          = 0x04*4;
+	const unsigned long	REG_ADDR_PARAMS_BANK            = 0x11*4;
+	const unsigned long	REG_ADDR_CFG_SHDER_TYPE         = 0x20*4;
+	const unsigned long	REG_ADDR_CFG_VERSION            = 0x21*4;
+	const unsigned long	REG_ADDR_CFG_BANK_ADDR_WIDTH    = 0x22*4;
+	const unsigned long	REG_ADDR_CFG_PARAMS_ADDR_WIDTH  = 0x23*4;
+	const unsigned long	REG_ADDR_CFG_BANK_NUM           = 0x24*4;
+	const unsigned long	REG_ADDR_CFG_EDGE_NUM           = 0x25*4;
+	const unsigned long	REG_ADDR_CFG_POLYGON_NUM        = 0x26*4;
+	const unsigned long	REG_ADDR_CFG_SHADER_PARAM_NUM   = 0x27*4;
+	const unsigned long	REG_ADDR_CFG_EDGE_PARAM_WIDTH   = 0x28*4;
+	const unsigned long	REG_ADDR_CFG_SHADER_PARAM_WIDTH = 0x29*4;
+	const unsigned long	REG_ADDR_CFG_REGION_PARAM_WIDTH = 0x2a*4;
+	const unsigned long	REG_ADDR_CFG_SHADER_PARAM_Q     = 0x2b*4;
 
 
 
@@ -165,6 +200,24 @@ public:
 	// デストラクタ
 	~JellyGL()
 	{
+	}
+
+	// 精度設定
+	void SetEdgeParamFracWidth(int q)	{ m_edge_param_q   = q;	}
+	void SetShaderParamFracWidth(int q)	{ m_shader_param_q = q;	}
+
+	// サイズ設定
+	void SetSize(int width, int height)
+	{
+		m_width  = width;
+		m_height = height;
+	}
+
+	// カリング設定
+	void SetCulling(bool cw, bool ccw)
+	{
+		m_culling_cw  = cw;
+		m_culling_ccw = ccw;
 	}
 
 	// 頂点バッファ設定
@@ -290,7 +343,7 @@ public:
 		// ラスタライザパラメータ生成
 		m_coeffsEdge.clear();
 		for ( auto edge : m_edge ) {
-			m_coeffsEdge.push_back(EdgeToRasterizeCoeff(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]]));
+			m_coeffsEdge.push_back(EdgeToRasterizeCoeff(m_draw_vertex[edge[0]], m_draw_vertex[edge[1]], m_edge_param_q));
 		}
 		m_coeffsShader.clear();
 		for ( auto p : m_polygon ) {
@@ -327,35 +380,37 @@ public:
 					vertex[j][1] =  m_draw_vertex[p.vertex[j]][1];	// y
 					vertex[j][2] =  param[i][j];					// param
 				}
-				rcs.push_back(ParamToRasterizeCoeff(vertex));
+				rcs.push_back(ShaderParamToRasterizeCoeff(vertex, m_shader_param_q));
 			}
 			m_coeffsShader.push_back(rcs);
 		}
 	}
 	
 
-	// H/W設定用パラメータ算出
-	void CalcEdgeRasterizerParameter(int width, void (*procEdge)(size_t index, RasterizerParameter rp, void* user), void* user=0)				
+	// ラスタライザ設定用パラメータ算出(edge)
+	void CalcEdgeRasterizerParameter(void (*procEdge)(size_t index, RasterizerParameter rp, void* user), void* user=0)				
 	{
 		// edge
 		for ( size_t index = 0; index < m_coeffsEdge.size(); ++index ) {
-			procEdge(index, m_coeffsEdge[index].GetRasterizerParameter(width), user);
+			procEdge(index, m_coeffsEdge[index].GetRasterizerParameter(m_width), user);
 		}
 	}
 
-	void CalcShaderRasterizerParameter(int width, void (*procShader)(size_t index, const std::vector<RasterizerParameter>& rps, void* user), void* user=0)
+	// ラスタライザ設定用パラメータ算出(shader)
+	void CalcShaderRasterizerParameter(void (*procShader)(size_t index, const std::vector<RasterizerParameter>& rps, void* user), void* user=0)
 	{
 		// shader param
 		for ( size_t index = 0; index < m_coeffsShader.size(); ++index ) {
 			std::vector<RasterizerParameter>	rps;
 			for ( auto& rc : m_coeffsShader[index] ) {
-				rps.push_back(rc.GetRasterizerParameter(width));
+				rps.push_back(rc.GetRasterizerParameter(m_width));
 			}
 			procShader(index, rps, user);
 		}
 	}
 	
-	void CalcRegionRasterizerParameter(int width, void (*procRegion)(size_t index, const std::vector<PolygonRegion>& region, void* user), void* user=0)
+	// ラスタライザ設定用パラメータ算出(region)
+	void CalcRegionRasterizerParameter(void (*procRegion)(size_t index, const std::vector<PolygonRegion>& region, void* user), void* user=0)
 	{
 		// region
 		for ( size_t index = 0; index < m_polygon.size(); ++index ) {
@@ -363,70 +418,30 @@ public:
 		}
 	}
 	
-
-	// パラメータ表示
-	void PrintHwParam(int width)
-	{
-		printf("<edge>\n");
-		for ( auto& rp : m_coeffsEdge ) {
-			rp.PrintHwParam(width);
-		}
-		printf("\n");
-
-		printf("<polygon uvt>\n");
-		for ( auto& rps : m_coeffsShader ) {
-			rps[0].PrintHwParam(width);
-			rps[1].PrintHwParam(width);
-			rps[2].PrintHwParam(width);
-			printf("\n");
-		}
-
-		printf("<polygon rgb>\n");
-		for ( auto& rps : m_coeffsShader ) {
-			rps[3].PrintHwParam(width);
-			rps[4].PrintHwParam(width);
-			rps[5].PrintHwParam(width);
-			printf("\n");
-		}
-
-		printf("<region>\n");
-		for ( auto& pol : m_polygon ) {
-			unsigned long edge_flag = 0;
-			unsigned long inv_flag  = 0;
-			for ( auto& reg : pol.region ) {
-				edge_flag |= (1 << reg.edge);
-				if ( reg.inverse ) {
-					inv_flag |= (1 << reg.edge);
-				}
-			}
-			printf("%08x\n", edge_flag);
-			printf("%08x\n", inv_flag);
-		}
-	}
-
-	void Draw(int width, int height, void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
+	// 描画シミュレーション
+	void Draw(void (*proc)(int x, int y, bool polygon, PixelParam pp, void* user), void* user=0)
 	{
 		// 計算用ユニット設定
 		std::vector<RasterizerUnit> rasterizerEdge;
 		for ( auto& rc : m_coeffsEdge ) {
-			rasterizerEdge.push_back(RasterizerUnit(rc.GetRasterizerParameter(width)));
+			rasterizerEdge.push_back(RasterizerUnit(rc.GetRasterizerParameter(m_width)));
 		}
 		std::vector< std::vector<RasterizerUnit> > rasterizerParam;
 		for ( auto& rcs : m_coeffsShader ) {
 			std::vector<RasterizerUnit>	vec;
 			for ( auto& rc : rcs ) {
-				vec.push_back(RasterizerUnit(rc.GetRasterizerParameter(width)));
+				vec.push_back(RasterizerUnit(rc.GetRasterizerParameter(m_width)));
 			}
 			rasterizerParam.push_back(vec);
 		}
 
 		// 描画		
 		std::vector<bool>	edge_flags(m_coeffsEdge.size());
-		for ( int y = 0; y < height; ++y ) {
-			for ( int x = 0; x < width; ++x ) {
+		for ( int y = 0; y < m_height; ++y ) {
+			for ( int x = 0; x < m_width; ++x ) {
 				// エッジ判定
 				for ( size_t i = 0; i < rasterizerEdge.size(); ++i ) {
-					edge_flags[i] = rasterizerEdge[i].GetEdgeValue();
+					edge_flags[i] = rasterizerEdge[i].GetEdgeDiscriminantValue();
 				}
 				
 				// Z判定
@@ -436,18 +451,18 @@ public:
 					if ( CheckRegion(m_polygon[i].region, edge_flags) ) {
 						T w, u, v;
 						if ( perspective_correction ) {
-							w = 1 / (T)rasterizerParam[i][0].GetParamValue();
-							u = rasterizerParam[i][1].GetParamValue() * w;
-							v = rasterizerParam[i][2].GetParamValue() * w;
+							w = 1 / (T)rasterizerParam[i][0].GetShaderParamValue(m_shader_param_q);
+							u = rasterizerParam[i][1].GetShaderParamValue(m_shader_param_q) * w;
+							v = rasterizerParam[i][2].GetShaderParamValue(m_shader_param_q) * w;
 						}
 						else {
-							w = rasterizerParam[i][0].GetParamValue();
-							u = rasterizerParam[i][1].GetParamValue();
-							v = rasterizerParam[i][2].GetParamValue();
+							w = rasterizerParam[i][0].GetShaderParamValue(m_shader_param_q);
+							u = rasterizerParam[i][1].GetShaderParamValue(m_shader_param_q);
+							v = rasterizerParam[i][2].GetShaderParamValue(m_shader_param_q);
 						}
-						T	r = rasterizerParam[i][3].GetParamValue();
-						T	g = rasterizerParam[i][4].GetParamValue();
-						T	b = rasterizerParam[i][5].GetParamValue();
+						T	r = rasterizerParam[i][3].GetShaderParamValue(m_shader_param_q);
+						T	g = rasterizerParam[i][4].GetShaderParamValue(m_shader_param_q);
+						T	b = rasterizerParam[i][5].GetShaderParamValue(m_shader_param_q);
 
 						if ( !valid || pp.tex_cord[2] > w ) {
 							valid = true;
@@ -467,11 +482,11 @@ public:
 
 				// パラメータインクリメント
 				for ( auto& ras : rasterizerEdge ) {
-					ras.CalcNext(x == (width-1));
+					ras.CalcNext(x == (m_width-1));
 				}
 				for ( auto& vec : rasterizerParam ) {
 					for ( auto& ras : vec ) {
-						ras.CalcNext(x == (width-1));
+						ras.CalcNext(x == (m_width-1));
 					}
 				}
 			}
@@ -493,14 +508,14 @@ protected:
 	}
 	
 	// エッジ判定係数算出
-	RasterizeCoeff	EdgeToRasterizeCoeff(Vec4 v0, Vec4 v1)
+	RasterizeCoeff	EdgeToRasterizeCoeff(Vec4 v0, Vec4 v1, int param_q)
 	{
 		TI ix0 = (TI)round(v0[0]);
 		TI iy0 = (TI)round(v0[1]);
-		TI x0 = (TI)round(v0[0] * (1 << QE));
-		TI y0 = (TI)round(v0[1] * (1 << QE));
-		TI x1 = (TI)round(v1[0] * (1 << QE));
-		TI y1 = (TI)round(v1[1] * (1 << QE));
+		TI x0 = (TI)round(v0[0] * (1 << param_q));
+		TI y0 = (TI)round(v0[1] * (1 << param_q));
+		TI x1 = (TI)round(v1[0] * (1 << param_q));
+		TI y1 = (TI)round(v1[1] * (1 << param_q));
 		
 		RasterizeCoeff	rc;
 		rc.dx = y0 - y1;
@@ -515,7 +530,7 @@ protected:
 	}
 
 	// ポリゴンパラメータ係数計算
-	RasterizeCoeff	ParamToRasterizeCoeff(Vec3 vertex[3])
+	RasterizeCoeff	ShaderParamToRasterizeCoeff(Vec3 vertex[3], int param_q)
 	{
 		Vec3	vector0 = SubVec3(vertex[1], vertex[0]);
 		Vec3	vector1 = SubVec3(vertex[2], vertex[0]);
@@ -526,9 +541,9 @@ protected:
 		T		c  = (cross[0]*vertex[0][0] + cross[1]*vertex[0][1] + cross[2]*vertex[0][2]) / cross[2];
 
 		RasterizeCoeff	rc;
-		rc.dx = (TI)(dx * (1 << QP));
-		rc.dy = (TI)(dy * (1 << QP));
-		rc.c  = (TI)(c  * (1 << QP));
+		rc.dx = (TI)(dx * (1 << param_q));
+		rc.dy = (TI)(dy * (1 << param_q));
+		rc.c  = (TI)(c  * (1 << param_q));
 
 		return rc;
 	}
@@ -609,6 +624,90 @@ public:
 		mat[3][2] = -1;
 		return mat;
 	}
+	
+
+	// -----------------------------------------
+	//  H/W制御
+	// -----------------------------------------
+
+protected:
+	// レジスタ書き込み
+	void WriteHwRegister(uint32_t add, uint32_t data)
+	{
+		*(volatile uint32_t*)(m_hw_base_addr + add) = data;
+	}
+
+	// レジスタ読み込み
+	uint32_t ReadHwRegister(uint32_t add)
+	{
+		return *(volatile uint32_t*)(m_hw_base_addr + add);
+	}
+	
+	// パラメータレジスタ書き込み
+	void WriteHwParamRegister(uint32_t bank, uint32_t param, uint32_t addr, uint32_t data)
+	{
+		WriteHwRegister((bank * m_hw_bank_step) + (param * m_hw_params_step) + addr, data);
+	}
+	
+	// エッジパラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t index, RasterizerParameter rp)
+	{
+		uint32_t addr = index * 3 * 4;
+		WriteHwParamRegister(bank, 1, addr, rp[0]);	addr += 4;
+		WriteHwParamRegister(bank, 1, addr, rp[1]);	addr += 4;
+		WriteHwParamRegister(bank, 1, addr, rp[2]);
+	}
+
+	// シェーダーパラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t polygon_index, uint32_t param_index, RasterizerParameter rp)
+	{
+		uint32_t addr = (polygon_index * m_hw_shader_param_num + param_index) * 3 * 4;
+		WriteHwParamRegister(bank, 2, addr, rp[0]);	addr += 4;
+		WriteHwParamRegister(bank, 2, addr, rp[1]);	addr += 4;
+		WriteHwParamRegister(bank, 2, addr, rp[2]);
+	}
+
+	// 領域パラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t index, uint32_t flag, uint32_t polality)
+	{
+		uint32_t addr = index * 2 * 4;
+		WriteHwParamRegister(bank, 3, addr, flag);		addr += 4;
+		WriteHwParamRegister(bank, 3, addr, polality);
+	}
+
+public:
+	// H/W初期化
+	void SetupHwCore(uint32_t base_addr, bool auto_config=true)
+	{
+		// ベースアドレス設定
+		m_hw_base_addr = base_addr;
+
+		// 設定読み出し
+		if ( auto_config ) {
+			m_hw_shader_type      = ReadHwRegister(REG_ADDR_CFG_SHDER_TYPE);
+			m_hw_version          = ReadHwRegister(REG_ADDR_CFG_VERSION);
+			m_hw_bank_step        = (4 << ReadHwRegister(REG_ADDR_CFG_BANK_ADDR_WIDTH));
+			m_hw_params_step      = (4 << ReadHwRegister(REG_ADDR_CFG_PARAMS_ADDR_WIDTH));
+			m_hw_bank_num         = ReadHwRegister(REG_ADDR_CFG_BANK_NUM);
+			m_hw_edge_num         = ReadHwRegister(REG_ADDR_CFG_EDGE_NUM);
+			m_hw_polygon_num      = ReadHwRegister(REG_ADDR_CFG_POLYGON_NUM);
+			m_hw_shader_param_num = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_NUM);
+			m_hw_shader_param_q   = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_Q);
+			if ( m_hw_shader_param_q > 0 ) {
+				m_shader_param_q = m_hw_shader_param_q;
+			}
+
+			m_hw_shader_param_has_z        = (m_hw_shader_type & 0x01);
+			m_hw_shader_param_has_tex_cord = (m_hw_shader_type & 0x02);
+			m_hw_shader_param_has_color    = (m_hw_shader_type & 0x04);
+		}
+	}
+
+	// 描画実施
+	void DrawHw(uint32_t bank)
+	{
+	}
+
 
 
 	// -----------------------------------------
