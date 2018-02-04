@@ -5,7 +5,7 @@
 #include "JellyGL.h"
 
 
-typedef	JellyGL<float>	JGL;
+typedef	JellyGL<1>	JGL;
 
 
 #if 1
@@ -54,12 +54,12 @@ void RenderProc(int x, int y, bool polygon, JGL::PixelParam pp, void* user)
 		float v = MAX(0.0f, MIN(1.0f, pp.tex_cord[1]));
 		u *= (tex.cols-1);
 		v *= (tex.rows-1);
-		img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
+	//	img.at<cv::Vec3b>(y, x) = tex.at<cv::Vec3b>((int)round(v), (int)round(u));
 		
-		float r = MAX(0.0f, MIN(1.0f, pp.color[0])) * 255.0f;
+		float r = MAX(0.0f, MIN(1.0f, pp.color[2])) * 255.0f;
 		float g = MAX(0.0f, MIN(1.0f, pp.color[1])) * 255.0f;
-		float b = MAX(0.0f, MIN(1.0f, pp.color[2])) * 255.0f;
-	//	img.at<cv::Vec3b>(y, x) = cv::Vec3b((uchar)round(b), (uchar)round(g), (uchar)round(r));
+		float b = MAX(0.0f, MIN(1.0f, pp.color[0])) * 255.0f;
+		img.at<cv::Vec3b>(y, x) = cv::Vec3b((uchar)round(b), (uchar)round(g), (uchar)round(r));
 	}
 }
 
@@ -121,6 +121,10 @@ void rasterizer_test(void)
 {
 	int		width  = 640;
 	int		height = 480;
+
+//	width  = 1920;
+//	height = 1080;
+
 
 //	imgTex = cv::imread("DSC_0030.jpg");
 	imgTex[0] = cv::imread("Penguins.jpg");
@@ -236,7 +240,7 @@ void rasterizer_test(void)
 	jgl.SetFaceBuffer(face_table);
 	jgl.MakeDrawList();
 
-	cv::VideoWriter writer("output.avi", CV_FOURCC_DEFAULT, 30, cv::Size(640, 480), true);
+//	cv::VideoWriter writer("output.avi", CV_FOURCC_DEFAULT, 30, cv::Size(width, height), true);
 
 	float angle0 = 40;
 	float angle1 = -80;
@@ -259,7 +263,7 @@ void rasterizer_test(void)
 		
 		// view
 		JGL::Mat4	matLookAt       = JGL::LookAtMat4({5, -8, 20}, {0, 0, 0}, {0, 1, 0});
-		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(30.0f, (float)width/(float)height, 0.1f, 1000.0f);
+		JGL::Mat4	matPerspectivet = JGL::PerspectiveMat4(13.0f, (float)width/(float)height, 0.1f, 1000.0f);
 		jgl.SetViewMatrix(JGL::MulMat(matPerspectivet, matLookAt));
 		
 		//draw
@@ -267,17 +271,20 @@ void rasterizer_test(void)
 	//	jgl.PrintHwParam(width);
 		
 		// シミュレーション用出力
-		printf("\n$display(\"[edge]\");\n");	jgl.CalcEdgeRasterizerParameter(SimEdgeParamProc);
-		printf("\n$display(\"[shader]\");\n");	jgl.CalcShaderRasterizerParameter(SimShadereParamProc);
-		printf("\n$display(\"[region]\");\n");	jgl.CalcRegionRasterizerParameter(SimRegionParamProc);
-		printf("\n");	
-
-		jgl.Draw(RenderProc);
+	//	printf("\n$display(\"[edge]\");\n");	jgl.CalcEdgeRasterizerParameter(SimEdgeParamProc);
+	//	printf("\n$display(\"[shader]\");\n");	jgl.CalcShaderRasterizerParameter(SimShadereParamProc);
+	//	printf("\n$display(\"[region]\");\n");	jgl.CalcRegionRasterizerParameter(SimRegionParamProc);
+	//	printf("\n");	
 		
+		printf("------------\n");	
+		jgl.DrawHw(0);
+
+		// 描画
+		jgl.Draw(RenderProc);
 
 		// show
 		cv::imshow("img", img);
-		writer << img;
+//		writer << img;
 	} while ( cv::waitKey(0) != 0x1b );
 }
 

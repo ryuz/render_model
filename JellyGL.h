@@ -16,7 +16,7 @@
 #include <map>
 
 
-template <class T=float, class TI=int32_t, bool perspective_correction=true>
+template <int SIMULATION=0, class T=float, class TI=int32_t>
 class JellyGL
 {
 	// -----------------------------------------
@@ -125,9 +125,9 @@ protected:
 	int							m_height         = 480;
 	bool						m_culling_cw     = true;
 	bool						m_culling_ccw    = true;
-	
 	int							m_edge_param_q   = 4;
 	int							m_shader_param_q = 24;
+	bool						m_perspective_correction = true;
 
 	std::vector<Vec3>			m_vertex;			// 頂点リスト
 	std::vector<int>			m_vertex_model;		// 頂点の属するモデル番号
@@ -352,7 +352,7 @@ public:
 				T u = m_tex_cord[p.tex_cord[i]][0];
 				T v = m_tex_cord[p.tex_cord[i]][1];
 				T w = m_draw_vertex[p.vertex[i]][3];
-				if ( perspective_correction ) {
+				if ( m_perspective_correction ) {
 					param[0][i] = 1 / w;
 					param[1][i] = u / w;
 					param[2][i] = v / w;
@@ -450,7 +450,7 @@ public:
 				for ( size_t i = 0; i < m_polygon.size(); ++i ) {
 					if ( CheckRegion(m_polygon[i].region, edge_flags) ) {
 						T w, u, v;
-						if ( perspective_correction ) {
+						if ( m_perspective_correction ) {
 							w = 1 / (T)rasterizerParam[i][0].GetShaderParamValue(m_shader_param_q);
 							u = rasterizerParam[i][1].GetShaderParamValue(m_shader_param_q) * w;
 							v = rasterizerParam[i][2].GetShaderParamValue(m_shader_param_q) * w;
@@ -549,6 +549,176 @@ protected:
 	}
 	
 
+	// -----------------------------------------
+	//  H/W制御
+	// -----------------------------------------
+
+protected:
+	// H/W書き込み
+	inline void WriteHwWord(uint32_t addr, uint32_t data)
+	{
+		if ( SIMULATION == 0 ) {
+			// 実機
+			*(volatile uint32_t*)addr = data;
+		}
+		else if ( SIMULATION == 1 ) {
+			// verilog testbench用
+			printf("wb_write(32'h%08lx, 32'h%08lx, 4'hf);\n", (unsigned long)addr, (unsigned long)data);
+		}
+	}
+
+	// H/W読み出し
+	inline uint32_t ReadHwWord(uint32_t addr)
+	{
+		if ( SIMULATION == 0 ) {
+			return *(volatile uint32_t*)addr;
+		}
+
+		return 0;
+	}
+
+	// アドレス取得
+	inline uint32_t GetHwParamAddr(uint32_t bank, uint32_t param)
+	{
+		return m_hw_base_addr + (bank * m_hw_bank_step) + (param * m_hw_params_step);
+	}
+
+	// ラスタライザ設定
+	inline void WriteHwRasterizerParameter(uint32_t& addr, const RasterizerParameter& rp)
+	{
+		WriteHwWord(addr, rp[0]);	addr += 4;
+		WriteHwWord(addr, rp[1]);	addr += 4;
+		WriteHwWord(addr, rp[2]);	addr += 4;
+	}
+
+	// レジスタ書き込み
+	void WriteHwRegister(uint32_t addr, uint32_t data)
+	{
+		WriteHwWord(m_hw_base_addr + addr, data);
+	}
+
+	// レジスタ読み込み
+	uint32_t ReadHwRegister(uint32_t add)
+	{
+		return ReadHwWord(m_hw_base_addr + add);
+	}
+
+#if 0
+	
+	// パラメータレジスタ書き込み
+	void WriteHwParamRegister(uint32_t bank, uint32_t param, uint32_t addr, uint32_t data)
+	{
+		WriteHwRegister((bank * m_hw_bank_step) + (param * m_hw_params_step) + addr, data);
+	}
+	
+	// エッジパラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t index, RasterizerParameter rp)
+	{
+		uint32_t addr = index * 3 * 4;
+		WriteHwParamRegister(bank, 1, addr, rp[0]);	addr += 4;
+		WriteHwParamRegister(bank, 1, addr, rp[1]);	addr += 4;
+		WriteHwParamRegister(bank, 1, addr, rp[2]);
+	}
+
+	// シェーダーパラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t polygon_index, uint32_t param_index, RasterizerParameter rp)
+	{
+		uint32_t addr = (polygon_index * m_hw_shader_param_num + param_index) * 3 * 4;
+		WriteHwParamRegister(bank, 2, addr, rp[0]);	addr += 4;
+		WriteHwParamRegister(bank, 2, addr, rp[1]);	addr += 4;
+		WriteHwParamRegister(bank, 2, addr, rp[2]);
+	}
+
+	// 領域パラメータ書き込み
+	void WriteHwEdgeParam(uint32_t bank, uint32_t index, uint32_t flag, uint32_t polality)
+	{
+		uint32_t addr = index * 2 * 4;
+		WriteHwParamRegister(bank, 3, addr, flag);		addr += 4;
+		WriteHwParamRegister(bank, 3, addr, polality);
+	}
+#endif
+
+public:
+	// H/W初期化
+	void SetupHwCore(uint32_t base_addr, bool auto_config=true)
+	{
+		// ベースアドレス設定
+		m_hw_base_addr = base_addr;
+
+		// 設定読み出し
+		if ( auto_config ) {
+			m_hw_shader_type      = ReadHwRegister(REG_ADDR_CFG_SHDER_TYPE);
+			m_hw_version          = ReadHwRegister(REG_ADDR_CFG_VERSION);
+			m_hw_bank_step        = (4 << ReadHwRegister(REG_ADDR_CFG_BANK_ADDR_WIDTH));
+			m_hw_params_step      = (4 << ReadHwRegister(REG_ADDR_CFG_PARAMS_ADDR_WIDTH));
+			m_hw_bank_num         = ReadHwRegister(REG_ADDR_CFG_BANK_NUM);
+			m_hw_edge_num         = ReadHwRegister(REG_ADDR_CFG_EDGE_NUM);
+			m_hw_polygon_num      = ReadHwRegister(REG_ADDR_CFG_POLYGON_NUM);
+			m_hw_shader_param_num = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_NUM);
+			m_hw_shader_param_q   = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_Q);
+			if ( m_hw_shader_param_q > 0 ) {
+				m_shader_param_q = m_hw_shader_param_q;
+			}
+
+			m_hw_shader_param_has_z        = (m_hw_shader_type & 0x01);
+			m_hw_shader_param_has_tex_cord = (m_hw_shader_type & 0x02);
+			m_hw_shader_param_has_color    = (m_hw_shader_type & 0x04);
+		}
+	}
+
+	// 描画実施
+	void DrawHw(uint32_t bank)
+	{
+		uint32_t addr;
+
+		// edge
+		addr = GetHwParamAddr(bank, 1);
+		for ( auto& rc : m_coeffsEdge ) {
+			WriteHwRasterizerParameter(addr, rc.GetRasterizerParameter(m_width));
+		}
+
+		// shader param
+		addr = GetHwParamAddr(bank, 2);
+		for ( auto& rcs : m_coeffsShader ) {
+			std::vector<RasterizerParameter>	rps;
+			if ( m_hw_shader_param_has_z ) {
+				WriteHwRasterizerParameter(addr, rcs[0].GetRasterizerParameter(m_width));
+			}
+			if ( m_hw_shader_param_has_tex_cord ) {
+				WriteHwRasterizerParameter(addr, rcs[1].GetRasterizerParameter(m_width));
+				WriteHwRasterizerParameter(addr, rcs[2].GetRasterizerParameter(m_width));
+			}
+			if ( m_hw_shader_param_has_color ) {
+				WriteHwRasterizerParameter(addr, rcs[3].GetRasterizerParameter(m_width));
+				WriteHwRasterizerParameter(addr, rcs[4].GetRasterizerParameter(m_width));
+				WriteHwRasterizerParameter(addr, rcs[5].GetRasterizerParameter(m_width));
+			}
+		}
+
+		// region
+		addr = GetHwParamAddr(bank, 3);
+		for ( uint32_t index = 0; index < m_hw_polygon_num; ++index ) {
+			if ( (size_t)index < m_polygon.size() ) {
+				// bitマスク生成
+				unsigned long edge_flag = 0;
+				unsigned long pol_flag  = 0;
+				for ( auto& r : m_polygon[index].region ) {
+					edge_flag |= (1 << r.edge);
+					if ( r.inverse ) {
+						pol_flag |= (1 << r.edge);
+					}
+				}
+				WriteHwWord(addr, edge_flag);	addr += 4;
+				WriteHwWord(addr, pol_flag);	addr += 4;
+			}
+			else {
+				WriteHwWord(addr, 0);	addr += 4;
+				WriteHwWord(addr, 0);	addr += 4;
+			}
+		}
+	}	
+	
+
 
 	// -----------------------------------------
 	//  CG用行列計算補助関数
@@ -625,91 +795,7 @@ public:
 		return mat;
 	}
 	
-
-	// -----------------------------------------
-	//  H/W制御
-	// -----------------------------------------
-
-protected:
-	// レジスタ書き込み
-	void WriteHwRegister(uint32_t add, uint32_t data)
-	{
-		*(volatile uint32_t*)(m_hw_base_addr + add) = data;
-	}
-
-	// レジスタ読み込み
-	uint32_t ReadHwRegister(uint32_t add)
-	{
-		return *(volatile uint32_t*)(m_hw_base_addr + add);
-	}
 	
-	// パラメータレジスタ書き込み
-	void WriteHwParamRegister(uint32_t bank, uint32_t param, uint32_t addr, uint32_t data)
-	{
-		WriteHwRegister((bank * m_hw_bank_step) + (param * m_hw_params_step) + addr, data);
-	}
-	
-	// エッジパラメータ書き込み
-	void WriteHwEdgeParam(uint32_t bank, uint32_t index, RasterizerParameter rp)
-	{
-		uint32_t addr = index * 3 * 4;
-		WriteHwParamRegister(bank, 1, addr, rp[0]);	addr += 4;
-		WriteHwParamRegister(bank, 1, addr, rp[1]);	addr += 4;
-		WriteHwParamRegister(bank, 1, addr, rp[2]);
-	}
-
-	// シェーダーパラメータ書き込み
-	void WriteHwEdgeParam(uint32_t bank, uint32_t polygon_index, uint32_t param_index, RasterizerParameter rp)
-	{
-		uint32_t addr = (polygon_index * m_hw_shader_param_num + param_index) * 3 * 4;
-		WriteHwParamRegister(bank, 2, addr, rp[0]);	addr += 4;
-		WriteHwParamRegister(bank, 2, addr, rp[1]);	addr += 4;
-		WriteHwParamRegister(bank, 2, addr, rp[2]);
-	}
-
-	// 領域パラメータ書き込み
-	void WriteHwEdgeParam(uint32_t bank, uint32_t index, uint32_t flag, uint32_t polality)
-	{
-		uint32_t addr = index * 2 * 4;
-		WriteHwParamRegister(bank, 3, addr, flag);		addr += 4;
-		WriteHwParamRegister(bank, 3, addr, polality);
-	}
-
-public:
-	// H/W初期化
-	void SetupHwCore(uint32_t base_addr, bool auto_config=true)
-	{
-		// ベースアドレス設定
-		m_hw_base_addr = base_addr;
-
-		// 設定読み出し
-		if ( auto_config ) {
-			m_hw_shader_type      = ReadHwRegister(REG_ADDR_CFG_SHDER_TYPE);
-			m_hw_version          = ReadHwRegister(REG_ADDR_CFG_VERSION);
-			m_hw_bank_step        = (4 << ReadHwRegister(REG_ADDR_CFG_BANK_ADDR_WIDTH));
-			m_hw_params_step      = (4 << ReadHwRegister(REG_ADDR_CFG_PARAMS_ADDR_WIDTH));
-			m_hw_bank_num         = ReadHwRegister(REG_ADDR_CFG_BANK_NUM);
-			m_hw_edge_num         = ReadHwRegister(REG_ADDR_CFG_EDGE_NUM);
-			m_hw_polygon_num      = ReadHwRegister(REG_ADDR_CFG_POLYGON_NUM);
-			m_hw_shader_param_num = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_NUM);
-			m_hw_shader_param_q   = ReadHwRegister(REG_ADDR_CFG_SHADER_PARAM_Q);
-			if ( m_hw_shader_param_q > 0 ) {
-				m_shader_param_q = m_hw_shader_param_q;
-			}
-
-			m_hw_shader_param_has_z        = (m_hw_shader_type & 0x01);
-			m_hw_shader_param_has_tex_cord = (m_hw_shader_type & 0x02);
-			m_hw_shader_param_has_color    = (m_hw_shader_type & 0x04);
-		}
-	}
-
-	// 描画実施
-	void DrawHw(uint32_t bank)
-	{
-	}
-
-
-
 	// -----------------------------------------
 	//  行列計算補助関数
 	// -----------------------------------------
